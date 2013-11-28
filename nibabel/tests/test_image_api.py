@@ -34,7 +34,8 @@ _, have_h5py, _ = optional_package('h5py')
 
 from .. import (AnalyzeImage, Spm99AnalyzeImage, Spm2AnalyzeImage,
                 Nifti1Pair, Nifti1Image, Nifti2Pair, Nifti2Image,
-                MGHImage, Minc1Image, Minc2Image)
+                MGHImage, Minc1Image, Minc2Image,VtcImage,MskImage,
+                VmpImage)
 from ..spatialimages import SpatialImage
 from .. import minc1, minc2, parrec
 

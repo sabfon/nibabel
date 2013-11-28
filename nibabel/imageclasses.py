@@ -106,4 +106,7 @@ ext_map = ExtMapRecoder((
     ('mgh', '.mgh'),
     ('mgz', '.mgz'),
     ('par', '.par'),
+    ('vtc', '.vtc'),
+    ('msk', '.msk'),
+    ('vmp', '.vmp')
 ))
