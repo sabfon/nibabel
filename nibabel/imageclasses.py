@@ -15,6 +15,9 @@ from .minc1 import Minc1Image
 from .freesurfer import MGHImage
 from .parrec import PARRECImage
 from .volumeutils import Recoder
+from .bv_vtc import VtcImage
+from .bv_msk import MskImage
+from .bv_vmp import VmpImage
 
 # If we don't have scipy, then we cannot write SPM format files
 try:
@@ -71,7 +74,19 @@ class_map = {
            'ext': '.par',
            'has_affine': True,
            'makeable': False,
-           'rw' : False}}
+           'rw' : False},
+    'vtc':{'class': VtcImage,
+           'ext': '.vtc',
+           'has_affine': True,
+           'rw':True},
+    'msk':{'class': MskImage,
+           'ext': '.msk',
+           'has_affine': True,
+           'rw':True},
+    'vmp':{'class': VmpImage,
+           'ext': '.vmp',
+           'has_affine': True,
+           'rw':True}}
 
 # mapping of extensions to default image class names
 ext_map = Recoder((
@@ -81,4 +96,7 @@ ext_map = Recoder((
     ('mgh', '.mgh'),
     ('mgz', '.mgz'),
     ('par', '.par'),
+    ('vtc', '.vtc'),
+    ('msk', '.msk'),
+    ('vmp', '.vmp')
 ))

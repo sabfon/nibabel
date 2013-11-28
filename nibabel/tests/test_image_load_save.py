@@ -31,7 +31,7 @@ from .. import nifti1 as ni1
 from .. import loadsave as nils
 from .. import (Nifti1Image, Nifti1Header, Nifti1Pair, Nifti2Image, Nifti2Pair,
                 Minc1Image, Minc2Image, Spm2AnalyzeImage, Spm99AnalyzeImage,
-                AnalyzeImage, MGHImage, class_map)
+                AnalyzeImage, MGHImage, VtcImage, MskImage, VmpImage, class_map)
 
 from ..tmpdirs import InTemporaryDirectory
 
@@ -329,3 +329,12 @@ def test_guessed_image_type():
     assert_equal(nils.guessed_image_type(
         pjoin(DATA_PATH, 'analyze.hdr')),
         Spm2AnalyzeImage)
+    assert_equal(nils.guessed_image_type(
+        pjoin(DATA_PATH, 'test.vtc')),
+        VtcImage)
+    assert_equal(nils.guessed_image_type(
+        pjoin(DATA_PATH, 'test.msk')),
+        MskImage)
+    assert_equal(nils.guessed_image_type(
+        pjoin(DATA_PATH, 'test.vmp')),
+        VmpImage)
