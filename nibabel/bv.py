@@ -100,8 +100,7 @@ class BvFileHeader(object):
     def __init__(self,
                  binaryblock=None,
                  endianness='<',
-                 check=True,
-                 template_dtype=None):
+                 check=True):
         ''' Initialize header from binary data block
 
         Parameters
@@ -119,9 +118,7 @@ class BvFileHeader(object):
             full (pre-parsed) template_dtype for header
         '''
 
-        if template_dtype is None:
-            raise BvError('No template for header!')
-        self._template_dtype = template_dtype
+        template_dtype = self.template_dtype(binaryblock)
         if binaryblock is None:
             self._structarr = self.__class__.default_structarr(endianness)
             return
@@ -141,9 +138,14 @@ class BvFileHeader(object):
                              dtype=dt,
                              buffer=binaryblock)
         self._structarr = wstr.copy()
+        self.set_data_offset(self.template_dtype.itemsize)
         if check:
             self.check_fix()
         return
+
+    @property
+    def template_dtype(self,binaryblock=None):
+        raise NotImplementedError
 
     @classmethod
     def from_fileobj(klass, fileobj, endianness=None, check=True):
@@ -686,55 +688,13 @@ class BvFileHeader(object):
 
     def get_data_shape(self):
         ''' Get shape of data
-
-        Examples
-        --------
-        >>> hdr = AnalyzeHeader()
-        >>> hdr.get_data_shape()
-        (0,)
-        >>> hdr.set_data_shape((1,2,3))
-        >>> hdr.get_data_shape()
-        (1, 2, 3)
-
-        Expanding number of dimensions gets default zooms
-
-        >>> hdr.get_zooms()
-        (1.0, 1.0, 1.0)
         '''
-        dims = self._structarr['dim']
-        ndims = dims[0]
-        if ndims == 0:
-            return 0,
-        return tuple(int(d) for d in dims[1:ndims+1])
+        raise NotImplementedError
 
     def set_data_shape(self, shape):
         ''' Set shape of data
-
-        If ``ndims == len(shape)`` then we set zooms for dimensions higher than
-        ``ndims`` to 1.0
-
-        Parameters
-        ----------
-        shape : sequence
-           sequence of integers specifying data array shape
         '''
-        dims = self._structarr['dim']
-        ndims = len(shape)
-        dims[:] = 1
-        dims[0] = ndims
-        try:
-            dims[1:ndims+1] = shape
-        except (ValueError, OverflowError):
-            # numpy 1.4.1 at least generates a ValueError from trying to set a
-            # python long into an int64 array (dims are int64 for nifti2)
-            values_fit = False
-        else:
-            values_fit = np.all(dims[1:ndims+1] == shape)
-        # Error if we did not succeed setting dimensions
-        if not values_fit:
-            raise HeaderDataError('shape %s does not fit in dim datatype' %
-                                  (shape,))
-        self._structarr['pixdim'][ndims+1:] = 1.0
+        raise NotImplementedError
 
     def get_base_affine(self):
         ''' Get affine from basic (shared) header fields
@@ -817,21 +777,12 @@ class BvFileHeader(object):
     def set_data_offset(self, offset):
         """ Set offset into data file to read data
         """
-        self._structarr['vox_offset'] = offset
+        self._data_offset = offset
 
     def get_data_offset(self):
         ''' Return offset into data file to read data
-
-        Examples
-        --------
-        >>> hdr = AnalyzeHeader()
-        >>> hdr.get_data_offset()
-        0
-        >>> hdr['vox_offset'] = 12
-        >>> hdr.get_data_offset()
-        12
         '''
-        return int(self._structarr['vox_offset'])
+        return self._data_offset
 
     def get_slope_inter(self):
         ''' Get scalefactor and intercept
@@ -971,125 +922,64 @@ class BvFileHeader(object):
 
 
 class VtcHeader(BvFileHeader):
-    def __init__(self,
-                 binaryblock=None,
-                 endianness='<',
-                 check=True):
-        ''' Initialize header from binary data block
-
-        Parameters
-        ----------
-        binaryblock : {None, string} optional
-            binary block to set into header.  By default, None, in
-            which case we insert the default empty header block
-        endianness : {None, '<','>', other endian code} string, optional
-            endianness of the binaryblock.  If None, guess endianness
-            from the data.
-        check : bool, optional
-            Whether to check content of header in initialization.
-            Default is True.
+    def get_data_shape(self):
+        ''' Get shape of data
         '''
-
-        # PreParsing of the VTC header (because of dynamic length)
-        # skip version number
-        fileobj.seek(2)
-        # find length of the linked FMR name
-        while True:
-            if fileobj.read(1) == asbytes('\x00'): break
-        lFmr = fileobj.tell()
-
-        # find number of linked PRTs
-        nPrt = int(np.fromstring(fileobj.read(2), np.int16)[0])
-
-        # find length of name(s) of linked PRT(s)
-        prts = array(nPrt)
-        for prt in range(nPrt):
-            start = fileobj.tell()
-            while True:
-                if fileobj.read(1) == asbytes('\x00'): break
-            prts(prt) = fileobj.tell()-start
-
-        # save dataOffset
-        dataOffset = fileobj.tell() + 26
-
-        # actual header parsing
-        raw_str = fileobj.read(klass.template_dtype.itemsize)
-
-        hdr = klass(raw_str, endianness, check)
-
-        dtype_code = int(hdr_str_to_np['type'])
-        data_dtype = klass._data_type_codes.numpy_dtype[dtype_code]
+        hdr = self._structarr
         # calculate dimensions
         z = (hdr['ZEnd'] - hdr['ZStart']) / hdr['relResolution']
         y = (hdr['YEnd'] - hdr['YStart']) / hdr['relResolution']
         x = (hdr['XEnd'] - hdr['XStart']) / hdr['relResolution']
         t = hdr['volumes']
-        shape = tuple(int(d) for d in [z,y,x,t])
-        zooms = None
+        return tuple(int(d) for d in [z,y,x,t])
 
-        super(VtcHeader, self).__init__(binaryblock, endianness, check, template_dtype)
+    def template_dtype(self,binaryblock=None):
+        if binaryblock is None:
+            binaryblock = self.binaryblock
 
-    @classmethod
-    def from_fileobj(klass, fileobj, endianness=None, check=True):
-        ''' Return read structure with given or guessed endiancode
-
-        Parameters
-        ----------
-        fileobj : file-like object
-           Needs to implement ``read`` method
-        endianness : None or endian code, optional
-           Code specifying endianness of read data
-
-        Returns
-        -------
-        wstr : WrapStruct object
-           WrapStruct object initialized from data in fileobj
-        '''
-
-        # PreParsing of the VTC header (because of dynamic length)
-        # skip version number
-        fileobj.seek(2)
-        # find length of the linked FMR name
-        while True:
-            if fileobj.read(1) == asbytes('\x00'): break
-        lFmr = fileobj.tell()
+        # find length of fmr filename (start search after the first 2 bytes)
+        fmrl = 'S' + str(binaryblock.find('\x00', 2) - 2)
 
         # find number of linked PRTs
-        nPrt = int(np.fromstring(fileobj.read(2), np.int16)[0])
+        nPrt = int(binaryblock[2+fmrl+1])
 
         # find length of name(s) of linked PRT(s)
-        prts = array(nPrt)
+        if nPrt == 0:
+            prts = 'S0'
+        prts = []
+        point = 2 + fmrl + 2
         for prt in range(nPrt):
-            start = fileobj.tell()
-            while True:
-                if fileobj.read(1) == asbytes('\x00'): break
-            prts(prt) = fileobj.tell()-start
+            prtl = binaryblock.find('\x00', point) - point
+            prts.append(('prt' + str(prt), 'S' + str(prtl)))
+            point += prtl
 
-        # save dataOffset
-        dataOffset = fileobj.tell() + 26
+        vtc_header_dtd = [
+            ('version', 'i2'),
+            ('fmr', fmrl),
+            ('nPrt', 'i2'),
+            ('prts', prts),
+            ('currentPrt', 'i2'),
+            ('datatype', 'i2'),
+            ('volumes', 'i2'),
+            ('relResolution', 'i2'),
+            ('XStart', 'i2'),
+            ('XEnd', 'i2'),
+            ('YStart', 'i2'),
+            ('YEnd', 'i2'),
+            ('ZStart', 'i2'),
+            ('ZEnd', 'i2'),
+            ('LRConvention', 'i1'),
+            ('RefSpace', 'i1'),
+            ('TR', 'f4'),
+            ]
 
-        # actual header parsing
-        raw_str = fileobj.read(klass.template_dtype.itemsize)
-
-        hdr = klass(raw_str, endianness, check)
-
-        dtype_code = int(hdr_str_to_np['type'])
-        data_dtype = klass._data_type_codes.numpy_dtype[dtype_code]
-        # calculate dimensions
-        z = (hdr['ZEnd'] - hdr['ZStart']) / hdr['relResolution']
-        y = (hdr['YEnd'] - hdr['YStart']) / hdr['relResolution']
-        x = (hdr['XEnd'] - hdr['XStart']) / hdr['relResolution']
-        t = hdr['volumes']
-        shape = tuple(int(d) for d in [z,y,x,t])
-        zooms = None
-
-        return hdr
+        return np.dtype(vtc_header_dtd)
 
     @classmethod
     def default_structarr(klass, endianness=None):
         ''' Return header data for empty header with given endianness
         '''
-        hdr_data = super(AnalyzeHeader, klass).default_structarr(endianness)
+        hdr_data = super(VtcHeader, klass).default_structarr(endianness)
         hdr_data['sizeof_hdr'] = klass.sizeof_hdr
         hdr_data['dim'] = 1
         hdr_data['dim'][0] = 0
@@ -1097,194 +987,6 @@ class VtcHeader(BvFileHeader):
         hdr_data['datatype'] = 16 # float32
         hdr_data['bitpix'] = 32
         return hdr_data
-
-class MskHeader(Header):
-    """Class to hold information from a MSK file header.
-    """
-    
-    default_x_flip = True
-    
-    # Copies of module-level definitions
-    _hdrdtype = msk_header_dtype
-    _data_type_codes = data_type_codes
-
-    def __init__(self,
-                 data_dtype=np.uint8,
-                 shape=(0,),
-                 zooms=None,
-                 offset=None):
-        self.set_data_dtype(data_dtype)
-        self._zooms = ()
-        self.set_data_shape(shape)
-        if not zooms is None:
-            self.set_zooms(zooms)
-        self.set_data_offset(offset)
-
-    @classmethod
-    def from_header(klass, header=None):
-        if header is None:
-            return klass()
-        # I can't do isinstance here because it is not necessarily true
-        # that a subclass has exactly the same interface as it's parent
-        # - for example Nifti1Images inherit from Analyze, but have
-        # different field names
-        if type(header) == klass:
-            return header.copy()
-        return klass(header.get_data_dtype(),
-                     header.get_data_shape(),
-                     header.get_zooms())
-
-    @classmethod
-    def from_fileobj(klass, fileobj):
-        '''
-        classmethod for loading a VTC fileobject
-        '''
-        hdr_str = fileobj.read(14)
-        dataOffset = 14
-        hdr_str_to_np = np.ndarray(shape=(),
-                         dtype=klass._hdrdtype,
-                         buffer=hdr_str)
-        # get data type
-        data_dtype = klass._data_type_codes.numpy_dtype[3]
-        # calculate dimensions
-        z = (hdr_str_to_np['ZEnd'] - hdr_str_to_np['ZStart']) / hdr_str_to_np['relResolution']
-        y = (hdr_str_to_np['YEnd'] - hdr_str_to_np['YStart']) / hdr_str_to_np['relResolution']
-        x = (hdr_str_to_np['XEnd'] - hdr_str_to_np['XStart']) / hdr_str_to_np['relResolution']
-        shape = tuple(int(d) for d in [z,y,x])
-        zooms = None
-        
-        return klass(data_dtype, shape, zooms, dataOffset)
-
-    def write_to(self, fileobj):
-        raise NotImplementedError
-
-    def get_base_affine(self):
-        shape = self.get_data_shape()
-        zooms = self.get_zooms()
-        return shape_zoom_affine(shape, zooms,
-                                 self.default_x_flip)
-
-    get_default_affine = get_base_affine
-
-    def data_to_fileobj(self, data, fileobj):
-        ''' Write image data to file in fortran order '''
-        dtype = self.get_data_dtype()
-        fileobj.write(data.astype(dtype).tostring(order='C'))
-
-    def data_from_fileobj(self, fileobj):
-        ''' Read data in fortran order '''
-        dtype = self.get_data_dtype()
-        shape = self.get_data_shape()
-        data_size = int(np.prod(shape) * dtype.itemsize)
-        data_bytes = fileobj.read(data_size)
-        return np.ndarray(shape, dtype, data_bytes, order='C')
-    
-    def get_data_offset(self):
-        ''' Return offset into data file to read data
-        '''
-        return self._dataOffset
-    
-    def set_data_offset(self, dataOffset):
-        ''' Return offset into data file to read data
-        '''
-        self._dataOffset = dataOffset
-    
-    def writehdr_to(self, fileobj):
-        raise NotImplementedError
-
-class VmpHeader(Header):
-    """Class to hold information from a VMP file header.
-    """
-    
-    default_x_flip = True
-    
-    # Copies of module-level definitions
-    _hdrdtype = vmp_header_dtype
-    _data_type_codes = data_type_codes
-
-    def __init__(self,
-                 data_dtype=np.uint8,
-                 shape=(0,),
-                 zooms=None,
-                 offset=None):
-        self.set_data_dtype(data_dtype)
-        self._zooms = ()
-        self.set_data_shape(shape)
-        if not zooms is None:
-            self.set_zooms(zooms)
-        self.set_data_offset(offset)
-
-    @classmethod
-    def from_header(klass, header=None):
-        if header is None:
-            return klass()
-        # I can't do isinstance here because it is not necessarily true
-        # that a subclass has exactly the same interface as it's parent
-        # - for example Nifti1Images inherit from Analyze, but have
-        # different field names
-        if type(header) == klass:
-            return header.copy()
-        return klass(header.get_data_dtype(),
-                     header.get_data_shape(),
-                     header.get_zooms())
-
-    @classmethod
-    def from_fileobj(klass, fileobj):
-        '''
-        classmethod for loading a VTC fileobject
-        '''
-        hdr_str = fileobj.read(14)
-        dataOffset = 14
-        hdr_str_to_np = np.ndarray(shape=(),
-                         dtype=klass._hdrdtype,
-                         buffer=hdr_str)
-        # get data type
-        data_dtype = klass._data_type_codes.numpy_dtype[3]
-        # calculate dimensions
-        z = (hdr_str_to_np['ZEnd'] - hdr_str_to_np['ZStart']) / hdr_str_to_np['relResolution']
-        y = (hdr_str_to_np['YEnd'] - hdr_str_to_np['YStart']) / hdr_str_to_np['relResolution']
-        x = (hdr_str_to_np['XEnd'] - hdr_str_to_np['XStart']) / hdr_str_to_np['relResolution']
-        shape = tuple(int(d) for d in [z,y,x])
-        zooms = None
-        
-        return klass(data_dtype, shape, zooms, dataOffset)
-
-    def write_to(self, fileobj):
-        raise NotImplementedError
-
-    def get_base_affine(self):
-        shape = self.get_data_shape()
-        zooms = self.get_zooms()
-        return shape_zoom_affine(shape, zooms,
-                                 self.default_x_flip)
-
-    get_default_affine = get_base_affine
-
-    def data_to_fileobj(self, data, fileobj):
-        ''' Write image data to file in fortran order '''
-        dtype = self.get_data_dtype()
-        fileobj.write(data.astype(dtype).tostring(order='C'))
-
-    def data_from_fileobj(self, fileobj):
-        ''' Read data in fortran order '''
-        dtype = self.get_data_dtype()
-        shape = self.get_data_shape()
-        data_size = int(np.prod(shape) * dtype.itemsize)
-        data_bytes = fileobj.read(data_size)
-        return np.ndarray(shape, dtype, data_bytes, order='C')
-    
-    def get_data_offset(self):
-        ''' Return offset into data file to read data
-        '''
-        return self._dataOffset
-    
-    def set_data_offset(self, dataOffset):
-        ''' Return offset into data file to read data
-        '''
-        self._dataOffset = dataOffset
-    
-    def writehdr_to(self, fileobj):
-        raise NotImplementedError
 
 class VtcImage(SpatialImage):
     # Set the class of the corresponding header
@@ -1298,6 +1000,17 @@ class VtcImage(SpatialImage):
 
     # use the standard ArrayProxy
     ImageArrayProxy = ArrayProxy
+
+    def get_header(self):
+        ''' Return header
+        '''
+        return self._header
+
+    def get_data_dtype(self):
+        return self._header.get_data_dtype()
+
+    def set_data_dtype(self, dtype):
+        self._header.set_data_dtype(dtype)
     
     @classmethod
     def from_file_map(klass, file_map):
@@ -1318,40 +1031,22 @@ class VtcImage(SpatialImage):
                            'affine': None,
                            'file_map': copy_file_map(file_map)}
         return img
-    
-    def to_file_map(self, file_map=None):
-        ''' Write image to `file_map` or contained ``self.file_map``
+
+    def _write_header(self, header_file, header, slope, inter):
+        ''' Utility routine to write header
 
         Parameters
         ----------
-        file_map : None or mapping, optional
-           files mapping.  If None (default) use object's ``file_map``
-           attribute instead
-        '''
-        if file_map is None:
-            file_map = self.file_map
-        data = self.get_data()
-        self.update_header()
-        hdr = self.get_header()
-        vtcf = file_map['image'].get_prepare_fileobj('wb')
-        self._write_header(vtcf, hdr)
-        self._write_data(vtcf, data, hdr)
-        # if the file_map points to a filename, close it
-        if file_map['image'].fileobj is None:  # was filename
-            vtcf.close()
-        self._header = hdr
-        self.file_map = file_map
-    
-    def _write_header(self, vtcfile, header):
-        ''' Utility routine to write VTC header
-
-        Parameters
-        ----------
-        vtcfile  : file-like
+        header_file : file-like
            file-like object implementing ``write``, open for writing
         header : header object
+        slope : None or float
+           slope for data scaling
+        inter : None or float
+           intercept for data scaling
         '''
-        header.writehdr_to(vtcfile)
+        header.set_slope_inter(slope, inter)
+        header.write_to(header_file)
 
     def _write_data(self, vtcfile, data, header):
         ''' Utility routine to write VTC image
@@ -1373,253 +1068,39 @@ class VtcImage(SpatialImage):
         offset = header.get_data_offset()
         out_dtype = header.get_data_dtype()
         array_to_file(data, vtcfile, out_dtype, offset)
-    
-    def get_affine(self):
-        ''' Return the affine transform'''
-        return self._affine
-#    def get_affine(self):
-#        return self._affine
-    
-    def update_header(self):
-        ''' Harmonize header with image data and affine
+
+    def to_file_map(self, file_map=None):
+        ''' Write image to `file_map` or contained ``self.file_map``
+
+        Parameters
+        ----------
+        file_map : None or mapping, optional
+           files mapping.  If None (default) use object's ``file_map``
+           attribute instead
         '''
-        hdr = self._header
-        if not self._data is None:
-            hdr.set_data_shape(self._data.shape)
-
-        if not self._affine is None:
-            # for more information, go through save_mgh.m in FreeSurfer dist
-            MdcD = self._affine[:3, :3]
-            delta = np.sqrt(np.sum(MdcD * MdcD, axis=0))
-            Mdc = MdcD / np.tile(delta, (3, 1))
-            Pcrs_c = np.array([0, 0, 0, 1], dtype=np.float)
-            Pcrs_c[:3] = np.array([self._data.shape[0], self._data.shape[1],
-                                   self._data.shape[2]], dtype=np.float) / 2.0
-            Pxyz_c = np.dot(self._affine, Pcrs_c)
-
-            hdr['delta'][:] = delta
-            hdr['Mdc'][:, :] = Mdc.T
-            hdr['Pxyz_c'][:] = Pxyz_c[:3]
+        if file_map is None:
+            file_map = self.file_map
+        data = self.get_data()
+        self.update_header()
+        hdr = self.get_header()
+        out_dtype = self.get_data_dtype()
+        arr_writer = make_array_writer(data,
+                                       out_dtype,
+                                       hdr.has_data_slope,
+                                       hdr.has_data_intercept)
+        vtcf = file_map['image'].get_prepare_fileobj('wb')
+        slope, inter = get_slope_inter(arr_writer)
+        self._write_header(vtcf, hdr, slope, inter)
+        # Write image
+        shape = hdr.get_data_shape()
+        if data.shape != shape:
+            raise HeaderDataError('Data should be shape (%s)' %
+                                  ', '.join(str(s) for s in shape))
+        seek_tell(vtcf, hdr.get_data_offset())
+        arr_writer.to_fileobj(vtcf)
+        vtcf.close_if_mine()
+        self._header = hdr
+        self.file_map = file_map
 
 load = VtcImage.load
 save = VtcImage.instance_to_filename
-
-class MskImage(SpatialImage):
-    header_class = MskHeader
-    files_types = (('image', '.msk'),)
-    _compressed_exts = ()
-    
-    ImageArrayProxy = ArrayProxy
-    
-    @classmethod
-    def from_file_map(klass, file_map):
-        '''Load image from `file_map`
-
-        Parameters
-        ----------
-        file_map : None or mapping, optional
-           files mapping.  If None (default) use object's ``file_map``
-           attribute instead
-        '''
-        mskf = file_map['image'].get_prepare_fileobj('rb')
-        header = klass.header_class.from_fileobj(mskf)
-        affine = None
-        hdr_copy = header.copy()
-        data = klass.ImageArrayProxy(mskf, hdr_copy)
-        img = klass(data, affine, header, file_map=file_map)
-        img._load_cache = {'header': hdr_copy,
-                           'affine': None,
-                           'file_map': copy_file_map(file_map)}
-        return img
-    
-    def to_file_map(self, file_map=None):
-        ''' Write image to `file_map` or contained ``self.file_map``
-
-        Parameters
-        ----------
-        file_map : None or mapping, optional
-           files mapping.  If None (default) use object's ``file_map``
-           attribute instead
-        '''
-        if file_map is None:
-            file_map = self.file_map
-        data = self.get_data()
-        self.update_header()
-        hdr = self.get_header()
-        mskf = file_map['image'].get_prepare_fileobj('wb')
-        self._write_header(mskf, hdr)
-        self._write_data(mskf, data, hdr)
-        # if the file_map points to a filename, close it
-        if file_map['image'].fileobj is None:  # was filename
-            mskf.close()
-        self._header = hdr
-        self.file_map = file_map
-    
-    def _write_header(self, mskfile, header):
-        ''' Utility routine to write VTC header
-
-        Parameters
-        ----------
-        mskfile  : file-like
-           file-like object implementing ``write``, open for writing
-        header : header object
-        '''
-        header.writehdr_to(mskfile)
-
-    def _write_data(self, mskfile, data, header):
-        ''' Utility routine to write VTC image
-
-        Parameters
-        ----------
-        mskfile : file-like
-           file-like object implementing ``seek`` or ``tell``, and
-           ``write``
-        data : array-like
-           array to write
-        header : analyze-type header object
-           header
-        '''
-        shape = header.get_data_shape()
-        if data.shape != shape:
-            raise HeaderDataError('Data should be shape (%s)' %
-                                  ', '.join(str(s) for s in shape))
-        offset = header.get_data_offset()
-        out_dtype = header.get_data_dtype()
-        array_to_file(data, mskfile, out_dtype, offset)
-    
-    def get_affine(self):
-        ''' Return the affine transform'''
-        return self._affine
-#    def get_affine(self):
-#        return self._affine
-    
-    def update_header(self):
-        ''' Harmonize header with image data and affine
-        '''
-        hdr = self._header
-        if not self._data is None:
-            hdr.set_data_shape(self._data.shape)
-
-        if not self._affine is None:
-            # for more information, go through save_mgh.m in FreeSurfer dist
-            MdcD = self._affine[:3, :3]
-            delta = np.sqrt(np.sum(MdcD * MdcD, axis=0))
-            Mdc = MdcD / np.tile(delta, (3, 1))
-            Pcrs_c = np.array([0, 0, 0, 1], dtype=np.float)
-            Pcrs_c[:3] = np.array([self._data.shape[0], self._data.shape[1],
-                                   self._data.shape[2]], dtype=np.float) / 2.0
-            Pxyz_c = np.dot(self._affine, Pcrs_c)
-
-            hdr['delta'][:] = delta
-            hdr['Mdc'][:, :] = Mdc.T
-            hdr['Pxyz_c'][:] = Pxyz_c[:3]
-            
-class VmpImage(SpatialImage):
-    header_class = VmpHeader
-    files_types = (('image', '.vmp'),)
-    _compressed_exts = ()
-    
-    ImageArrayProxy = ArrayProxy
-    
-    @classmethod
-    def from_file_map(klass, file_map):
-        '''Load image from `file_map`
-
-        Parameters
-        ----------
-        file_map : None or mapping, optional
-           files mapping.  If None (default) use object's ``file_map``
-           attribute instead
-        '''
-        mskf = file_map['image'].get_prepare_fileobj('rb')
-        header = klass.header_class.from_fileobj(mskf)
-        affine = None
-        hdr_copy = header.copy()
-        data = klass.ImageArrayProxy(mskf, hdr_copy)
-        img = klass(data, affine, header, file_map=file_map)
-        img._load_cache = {'header': hdr_copy,
-                           'affine': None,
-                           'file_map': copy_file_map(file_map)}
-        return img
-    
-    def to_file_map(self, file_map=None):
-        ''' Write image to `file_map` or contained ``self.file_map``
-
-        Parameters
-        ----------
-        file_map : None or mapping, optional
-           files mapping.  If None (default) use object's ``file_map``
-           attribute instead
-        '''
-        if file_map is None:
-            file_map = self.file_map
-        data = self.get_data()
-        self.update_header()
-        hdr = self.get_header()
-        mskf = file_map['image'].get_prepare_fileobj('wb')
-        self._write_header(mskf, hdr)
-        self._write_data(mskf, data, hdr)
-        # if the file_map points to a filename, close it
-        if file_map['image'].fileobj is None:  # was filename
-            mskf.close()
-        self._header = hdr
-        self.file_map = file_map
-    
-    def _write_header(self, mskfile, header):
-        ''' Utility routine to write VTC header
-
-        Parameters
-        ----------
-        mskfile  : file-like
-           file-like object implementing ``write``, open for writing
-        header : header object
-        '''
-        header.writehdr_to(mskfile)
-
-    def _write_data(self, mskfile, data, header):
-        ''' Utility routine to write VTC image
-
-        Parameters
-        ----------
-        mskfile : file-like
-           file-like object implementing ``seek`` or ``tell``, and
-           ``write``
-        data : array-like
-           array to write
-        header : analyze-type header object
-           header
-        '''
-        shape = header.get_data_shape()
-        if data.shape != shape:
-            raise HeaderDataError('Data should be shape (%s)' %
-                                  ', '.join(str(s) for s in shape))
-        offset = header.get_data_offset()
-        out_dtype = header.get_data_dtype()
-        array_to_file(data, mskfile, out_dtype, offset)
-    
-    def get_affine(self):
-        ''' Return the affine transform'''
-        return self._affine
-#    def get_affine(self):
-#        return self._affine
-    
-    def update_header(self):
-        ''' Harmonize header with image data and affine
-        '''
-        hdr = self._header
-        if not self._data is None:
-            hdr.set_data_shape(self._data.shape)
-
-        if not self._affine is None:
-            # for more information, go through save_mgh.m in FreeSurfer dist
-            MdcD = self._affine[:3, :3]
-            delta = np.sqrt(np.sum(MdcD * MdcD, axis=0))
-            Mdc = MdcD / np.tile(delta, (3, 1))
-            Pcrs_c = np.array([0, 0, 0, 1], dtype=np.float)
-            Pcrs_c[:3] = np.array([self._data.shape[0], self._data.shape[1],
-                                   self._data.shape[2]], dtype=np.float) / 2.0
-            Pxyz_c = np.dot(self._affine, Pcrs_c)
-
-            hdr['delta'][:] = delta
-            hdr['Mdc'][:, :] = Mdc.T
-            hdr['Pxyz_c'][:] = Pxyz_c[:3]
