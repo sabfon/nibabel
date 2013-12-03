@@ -14,6 +14,7 @@ from .nifti1 import Nifti1Pair, Nifti1Image
 from .minc1 import Minc1Image
 from .freesurfer import MGHImage
 from .volumeutils import Recoder
+from .bv import VtcImage
 
 # If we don't have scipy, then we cannot write SPM format files
 try:
@@ -56,6 +57,10 @@ class_map = {
     'mgz':{'class': MGHImage,
            'ext': '.mgz',
            'has_affine': True,
+           'rw':True},
+    'vtc':{'class': VtcImage,
+           'ext': '.vtc',
+           'has_affine': False,
            'rw':True}}
 
 
@@ -66,4 +71,5 @@ ext_map = Recoder((
     ('nifti_pair', '.img', '.hdr'),
     ('minc', '.mnc'),
     ('mgh', '.mgh'),
-    ('mgz', '.mgz')))
+    ('mgz', '.mgz'),
+    ('vtc', '.vtc')))

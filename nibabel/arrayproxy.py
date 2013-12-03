@@ -45,12 +45,13 @@ class ArrayProxy(object):
     Other image types might need to implement their own implementation of this
     API.  See :mod:`minc` for an example.
     """
-    def __init__(self, file_like, header):
+    def __init__(self, file_like, header, order='F'):
         self.file_like = file_like
         # Copies of values needed to read array
         self._shape = header.get_data_shape()
         self._dtype = header.get_data_dtype()
         self._offset = header.get_data_offset()
+        self._order = order
         self._slope, self._inter = header.get_slope_inter()
         self._slope = 1.0 if self._slope is None else self._slope
         self._inter = 0.0 if self._inter is None else self._inter
@@ -90,6 +91,7 @@ class ArrayProxy(object):
             raw_data = array_from_file(self._shape,
                                        self._dtype,
                                        fileobj,
-                                       self._offset)
+                                       self._offset,
+                                       order=self._order)
         # Upcast as necessary for big slopes, intercepts
         return apply_read_scaling(raw_data, self._slope, self._inter)
