@@ -92,6 +92,7 @@ class ArrayProxy(object):
         self._shape = header.get_data_shape()
         self._dtype = header.get_data_dtype()
         self._offset = header.get_data_offset()
+        self._order = order
         self._slope, self._inter = header.get_slope_inter()
         self._slope = 1.0 if self._slope is None else self._slope
         self._inter = 0.0 if self._inter is None else self._inter

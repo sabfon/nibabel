@@ -25,23 +25,6 @@ from .wrapstruct import LabeledWrapStruct
 from . import imageglobals as imageglobals
 from .batteryrunners import Report, BatteryRunner
 
-# List of fields to expect in filtered VTC header
-vtc_header_dtd = [
-    ('version', 'i2'),
-    ('type', 'i2'),
-    ('volumes', 'i2'),
-    ('relResolution', 'i2'),
-    ('XStart', 'i2'),
-    ('XEnd', 'i2'),
-    ('YStart', 'i2'),
-    ('YEnd', 'i2'),
-    ('ZStart', 'i2'),
-    ('ZEnd', 'i2'),
-    ('LRConvention', 'i1'),
-    ('RefSpace', 'i1'),
-    ('TR', 'f4'),
-    ]
-
 # List of fields to expect in MSK header
 msk_header_dtype = [
     ('relResolution', 'i2'),
@@ -88,10 +71,9 @@ class BvFileHeader(object):
     """Class to hold information from a BV file header.
     """
 
-    default_x_flip = True
-
     # Copies of module-level definitions
     _data_type_codes = data_type_codes
+
 
     # data scaling capabilities
     has_data_slope = False
@@ -114,37 +96,24 @@ class BvFileHeader(object):
         check : bool, optional
             Whether to check content of header in initialization.
             Default is True.
-        template_dtype: numpy dtype
-            full (pre-parsed) template_dtype for header
         '''
 
-        template_dtype = self.template_dtype(binaryblock)
         if binaryblock is None:
-            self._structarr = self.__class__.default_structarr(endianness)
+            self._structarr = self.__class__.default_structarr()
+            self.template_dtype = self.update_template_dtype(binaryblock)
             return
-        # check size
-        if len(binaryblock) != template_dtype.itemsize:
-            raise BvError('Binary block is wrong size')
+
+        self.template_dtype = self.update_template_dtype(binaryblock)
+
         wstr = np.ndarray(shape=(),
-                         dtype=template_dtype,
-                         buffer=binaryblock)
-        if endianness is None:
-            raise BvError('endianness has to be defined')
-        else:
-            endianness = endian_codes[endianness]
-        if endianness != native_code:
-            dt = template_dtype.newbyteorder(endianness)
-            wstr = np.ndarray(shape=(),
-                             dtype=dt,
-                             buffer=binaryblock)
+                         dtype=self.template_dtype,
+                         buffer=binaryblock[:self.template_dtype.itemsize])
         self._structarr = wstr.copy()
-        self.set_data_offset(self.template_dtype.itemsize)
         if check:
             self.check_fix()
         return
 
-    @property
-    def template_dtype(self,binaryblock=None):
+    def update_template_dtype(self, binaryblock=None, item=None, value=None):
         raise NotImplementedError
 
     @classmethod
@@ -182,6 +151,8 @@ class BvFileHeader(object):
         >>> len(wstr.binaryblock)
         2
         '''
+        structarr = self._structarr
+
         return self._structarr.tostring()
 
     def write_to(self, fileobj):
@@ -298,6 +269,14 @@ class BvFileHeader(object):
         >>> wstr['integer']
         array(3, dtype=int16)
         '''
+        if self.template_dtype[item].type == np.string_:
+            self.update_template_dtype(item=item, value=value)
+            wstr = np.ndarray(shape=(),
+                             dtype=self.template_dtype,
+                             buffer=np.zeros(self.template_dtype.itemsize))
+            for key in self.keys():
+                wstr[key] = self._structarr[key]
+            self._structarr = wstr.copy()
         self._structarr[item] = value
 
     def __iter__(self):
@@ -435,7 +414,7 @@ class BvFileHeader(object):
                               endianness,
                               check=False)
 
-    def get_value_label(self, fieldname):
+    def get_value_label(self, fieldname): #TODO
         ''' Returns label for coded field
 
         A coded field is an int field containing codes that stand for
@@ -492,15 +471,11 @@ class BvFileHeader(object):
              pretty_mapping(self, _getter)])
 
     @classmethod
-    def from_fileobj(klass, fileobj, endianness=None, check=True):
+    def default_structarr(klass):
         raise NotImplementedError
 
     @classmethod
-    def default_structarr(klass, endianness=None):
-        raise NotImplementedError
-
-    @classmethod
-    def from_header(klass, header=None, check=True):
+    def from_header(klass, header=None, check=False):
         ''' Class method to create header from another header
 
         Parameters
@@ -580,7 +555,7 @@ class BvFileHeader(object):
         dtype = self.get_data_dtype()
         shape = self.get_data_shape()
         offset = self.get_data_offset()
-        return array_from_file(shape, dtype, fileobj, offset)
+        return array_from_file(shape, dtype, fileobj, offset, order='C')
 
     def data_from_fileobj(self, fileobj):
         ''' Read scaled data array from `fileobj`
@@ -686,6 +661,27 @@ class BvFileHeader(object):
         self._structarr['datatype'] = code
         self._structarr['bitpix'] = dtype.itemsize * 8
 
+    def get_xflip(self):
+        ''' Get xflip for data
+        '''
+        xflip = int(self._structarr['LRConvention'])
+        if xflip == 1:
+            return True
+        elif xflip == 2:
+            return False
+        else:
+            raise BvError('Left-right convention is unknown!')
+
+    def set_xflip(self, xflip):
+        ''' Set xflip for data
+        '''
+        if xflip == True:
+            self._structarr['LRConvention'] = 1
+        elif xflip == False:
+            self._structarr['LRConvention'] = 2
+        else:
+            self._structarr['LRConvention'] = 0
+
     def get_data_shape(self):
         ''' Get shape of data
         '''
@@ -697,79 +693,17 @@ class BvFileHeader(object):
         raise NotImplementedError
 
     def get_base_affine(self):
-        ''' Get affine from basic (shared) header fields
-
-        Note that we get the translations from the center of the
-        image.
-
-        Examples
-        --------
-        >>> hdr = AnalyzeHeader()
-        >>> hdr.set_data_shape((3, 5, 7))
-        >>> hdr.set_zooms((3, 2, 1))
-        >>> hdr.default_x_flip
-        True
-        >>> hdr.get_base_affine() # from center of image
-        array([[-3.,  0.,  0.,  3.],
-               [ 0.,  2.,  0., -4.],
-               [ 0.,  0.,  1., -3.],
-               [ 0.,  0.,  0.,  1.]])
-        '''
-        hdr = self._structarr
-        dims = hdr['dim']
-        ndim = dims[0]
-        return shape_zoom_affine(hdr['dim'][1:ndim+1],
-                                 hdr['pixdim'][1:ndim+1],
-                                 self.default_x_flip)
+        raise NotImplementedError
 
     get_best_affine = get_base_affine
 
     get_default_affine = get_base_affine
 
     def get_zooms(self):
-        ''' Get zooms from header
-
-        Returns
-        -------
-        z : tuple
-           tuple of header zoom values
-
-        Examples
-        --------
-        >>> hdr = AnalyzeHeader()
-        >>> hdr.get_zooms()
-        (1.0,)
-        >>> hdr.set_data_shape((1,2))
-        >>> hdr.get_zooms()
-        (1.0, 1.0)
-        >>> hdr.set_zooms((3, 4))
-        >>> hdr.get_zooms()
-        (3.0, 4.0)
-        '''
-        hdr = self._structarr
-        dims = hdr['dim']
-        ndim = dims[0]
-        if ndim == 0:
-            return (1.0,)
-        pixdims = hdr['pixdim']
-        return tuple(pixdims[1:ndim+1])
+        raise NotImplementedError
 
     def set_zooms(self, zooms):
-        ''' Set zooms into header fields
-
-        See docstring for ``get_zooms`` for examples
-        '''
-        hdr = self._structarr
-        dims = hdr['dim']
-        ndim = dims[0]
-        zooms = np.asarray(zooms)
-        if len(zooms) != ndim:
-            raise HeaderDataError('Expecting %d zoom values for ndim %d'
-                                  % (ndim, ndim))
-        if np.any(zooms < 0):
-            raise HeaderDataError('zooms must be positive')
-        pixdims = hdr['pixdim']
-        pixdims[1:ndim+1] = zooms[:]
+        raise NotImplementedError
 
     def as_analyze_map(self):
         raise NotImplementedError
@@ -813,26 +747,37 @@ class BvFileHeader(object):
             return
         raise HeaderTypeError('Cannot set slope != 1 or intercept != 0 '
                               'for BV headers')
+
     @classmethod
     def _get_checks(klass):
         ''' Return sequence of check functions for this class '''
-        return (klass._chk_sizeof_hdr,
+        return (klass._chk_fileversion,
+                klass._chk_sizeof_hdr,
                 klass._chk_datatype,
-                klass._chk_bitpix,
-                klass._chk_pixdims)
+                )
 
     ''' Check functions in format expected by BatteryRunner class '''
 
     @classmethod
+    def _chk_fileversion(klass, hdr, fix=False):
+        rep = Report(HeaderDataError)
+        if hdr['version'] == 3:
+            return hdr, rep
+        rep.problem_level = 40
+        rep.problem_msg = 'only fileversion 3 is supported at the moment!'
+        if fix:
+            rep.fix_msg = 'not attempting fix'
+        return hdr, rep
+
+    @classmethod
     def _chk_sizeof_hdr(klass, hdr, fix=False):
         rep = Report(HeaderDataError)
-        if hdr['sizeof_hdr'] == klass.sizeof_hdr:
+        if hdr.template_dtype.itemsize == len(hdr.binaryblock):
             return hdr, rep
-        rep.problem_level = 30
-        rep.problem_msg = 'sizeof_hdr should be ' + str(klass.sizeof_hdr)
+        rep.problem_level = 40
+        rep.problem_msg = 'size of binaryblock should be ' + str(hdr.template_dtype.itemsize)
         if fix:
-            hdr['sizeof_hdr'] = klass.sizeof_hdr
-            rep.fix_msg = 'set sizeof_hdr to ' + str(klass.sizeof_hdr)
+            rep.fix_msg = 'not attempting fix'
         return hdr, rep
 
     @classmethod
@@ -854,73 +799,6 @@ class BvFileHeader(object):
             rep.fix_msg = 'not attempting fix'
         return hdr, rep
 
-    @classmethod
-    def _chk_bitpix(klass, hdr, fix=False):
-        rep = Report(HeaderDataError)
-        code = int(hdr['datatype'])
-        try:
-            dt = klass._data_type_codes.dtype[code]
-        except KeyError:
-            rep.problem_level = 10
-            rep.problem_msg = 'no valid datatype to fix bitpix'
-            if fix:
-                rep.fix_msg = 'no way to fix bitpix'
-            return hdr, rep
-        bitpix = dt.itemsize * 8
-        if bitpix == hdr['bitpix']:
-            return hdr, rep
-        rep.problem_level = 10
-        rep.problem_msg = 'bitpix does not match datatype'
-        if fix:
-            hdr['bitpix'] = bitpix # inplace modification
-            rep.fix_msg = 'setting bitpix to match datatype'
-        return hdr, rep
-
-    @staticmethod
-    def _chk_pixdims(hdr, fix=False):
-        rep = Report(HeaderDataError)
-        pixdims = hdr['pixdim']
-        spat_dims = pixdims[1:4]
-        if not np.any(spat_dims <= 0):
-            return hdr, rep
-        neg_dims = spat_dims < 0
-        zero_dims = spat_dims == 0
-        pmsgs = []
-        fmsgs = []
-        if np.any(zero_dims):
-            level = 30
-            pmsgs.append('pixdim[1,2,3] should be non-zero')
-            if fix:
-                spat_dims[zero_dims] = 1
-                fmsgs.append('setting 0 dims to 1')
-        if np.any(neg_dims):
-            level = 35
-            pmsgs.append('pixdim[1,2,3] should be positive')
-            if fix:
-                spat_dims = np.abs(spat_dims)
-                fmsgs.append('setting to abs of pixdim values')
-        rep.problem_level = level
-        rep.problem_msg = ' and '.join(pmsgs)
-        if fix:
-            pixdims[1:4] = spat_dims
-            rep.fix_msg = ' and '.join(fmsgs)
-        return hdr, rep
-
-    def data_to_fileobj(self, data, fileobj):
-        ''' Write image data to file in fortran order '''
-        dtype = self.get_data_dtype()
-        fileobj.write(data.astype(dtype).tostring(order='C'))
-
-    def data_from_fileobj(self, fileobj):
-        ''' Read data in fortran order '''
-        dtype = self.get_data_dtype()
-        shape = self.get_data_shape()
-        data_size = int(np.prod(shape) * dtype.itemsize)
-        data_bytes = fileobj.read(data_size)
-        return np.ndarray(shape, dtype, data_bytes, order='C')
-    
-
-
 class VtcHeader(BvFileHeader):
     def get_data_shape(self):
         ''' Get shape of data
@@ -932,61 +810,114 @@ class VtcHeader(BvFileHeader):
         x = (hdr['XEnd'] - hdr['XStart']) / hdr['relResolution']
         t = hdr['volumes']
         return tuple(int(d) for d in [z,y,x,t])
+        #return tuple(int(d) for d in [t,x,y,z])
 
-    def template_dtype(self,binaryblock=None):
+    def update_template_dtype(self,binaryblock=None, item=None, value=None):
         if binaryblock is None:
             binaryblock = self.binaryblock
 
         # find length of fmr filename (start search after the first 2 bytes)
-        fmrl = 'S' + str(binaryblock.find('\x00', 2) - 2)
+        # include the stop byte ('\x00') in the string
+        fmrl = binaryblock.find('\x00', 2) - 1
+        fmrlt = 'S' + str(fmrl)
 
         # find number of linked PRTs
-        nPrt = int(binaryblock[2+fmrl+1])
+        nPrt = int(np.fromstring(binaryblock[2+fmrl:2+fmrl+2],np.uint16))
 
         # find length of name(s) of linked PRT(s)
         if nPrt == 0:
-            prts = 'S0'
-        prts = []
-        point = 2 + fmrl + 2
-        for prt in range(nPrt):
-            prtl = binaryblock.find('\x00', point) - point
-            prts.append(('prt' + str(prt), 'S' + str(prtl)))
-            point += prtl
+            prts = [('prt1', 'S0')]
+        else:
+            prts = []
+            point = 2 + fmrl + 3
+            for prt in range(nPrt):
+                prtl = binaryblock.find('\x00', point) - (point-2)
+                prts.append(('prt' + str(prt+1), 'S' + str(prtl)))
+                point += prtl
 
-        vtc_header_dtd = [
-            ('version', 'i2'),
-            ('fmr', fmrl),
-            ('nPrt', 'i2'),
-            ('prts', prts),
-            ('currentPrt', 'i2'),
-            ('datatype', 'i2'),
-            ('volumes', 'i2'),
-            ('relResolution', 'i2'),
-            ('XStart', 'i2'),
-            ('XEnd', 'i2'),
-            ('YStart', 'i2'),
-            ('YEnd', 'i2'),
-            ('ZStart', 'i2'),
-            ('ZEnd', 'i2'),
-            ('LRConvention', 'i1'),
-            ('RefSpace', 'i1'),
-            ('TR', 'f4'),
+        if len(prts)==1:
+            prts = prts[0]
+        else:
+            prts = ('prts', prts)
+
+        vtc_header_dtd = \
+            [
+                ('version', 'i2'),
+                ('fmr', 'S9'),
+                ('nPrt', 'i2'),
+                prts,
+                ('currentPrt', 'i2'),
+                ('datatype', 'i2'),
+                ('volumes', 'i2'),
+                ('relResolution', 'i2'),
+                ('XStart', 'i2'),
+                ('XEnd', 'i2'),
+                ('YStart', 'i2'),
+                ('YEnd', 'i2'),
+                ('ZStart', 'i2'),
+                ('ZEnd', 'i2'),
+                ('LRConvention', 'i1'),
+                ('RefSpace', 'i1'),
+                ('TR', 'f4'),
             ]
 
-        return np.dtype(vtc_header_dtd)
+        if item is not None:
+            vtc_header_dtd = [(x[0], x[1]) if x[0] != item else (item, 'S'+str(len(value)+1)) for x in vtc_header_dtd]
+        
+        dt = np.dtype(vtc_header_dtd)
+        self.set_data_offset(dt.itemsize)
+        self.template_dtype = dt
+
+        return dt
 
     @classmethod
     def default_structarr(klass, endianness=None):
         ''' Return header data for empty header with given endianness
         '''
-        hdr_data = super(VtcHeader, klass).default_structarr(endianness)
-        hdr_data['sizeof_hdr'] = klass.sizeof_hdr
-        hdr_data['dim'] = 1
-        hdr_data['dim'][0] = 0
-        hdr_data['pixdim'] = 1
-        hdr_data['datatype'] = 16 # float32
-        hdr_data['bitpix'] = 32
-        return hdr_data
+
+        vtc_header_dtd = \
+            [
+                ('version', 'i2'),
+                ('fmr', 'S0'),
+                ('nPrt', 'i2'),
+                ('prts', 'S0'),
+                ('currentPrt', 'i2'),
+                ('datatype', 'i2'),
+                ('volumes', 'i2'),
+                ('relResolution', 'i2'),
+                ('XStart', 'i2'),
+                ('XEnd', 'i2'),
+                ('YStart', 'i2'),
+                ('YEnd', 'i2'),
+                ('ZStart', 'i2'),
+                ('ZEnd', 'i2'),
+                ('LRConvention', 'i1'),
+                ('RefSpace', 'i1'),
+                ('TR', 'f4')
+            ]
+
+        dt = np.dtype(vtc_header_dtd)
+        hdr = np.zeros((), dtype=dt)
+
+        hdr['version'] = 3
+        hdr['fmr'] = ''
+        hdr['nPrt'] = 0
+        hdr['prts'] = ''
+        hdr['currentPrt'] = 0
+        hdr['datatype'] = 2
+        hdr['volumes'] = 0
+        hdr['relResolution'] = 3
+        hdr['XStart'] = 57
+        hdr['XEnd'] = 231
+        hdr['YStart'] = 52
+        hdr['YEnd'] = 172
+        hdr['ZStart'] = 59
+        hdr['ZEnd'] = 197
+        hdr['LRConvention'] = 1
+        hdr['RefSpace'] = 3
+        hdr['TR'] = 2000
+
+        return hdr
 
 class VtcImage(SpatialImage):
     # Set the class of the corresponding header
@@ -1025,8 +956,9 @@ class VtcImage(SpatialImage):
         vtcf = file_map['image'].get_prepare_fileobj('rb')
         header = klass.header_class.from_fileobj(vtcf)
         hdr_copy = header.copy()
-        data = klass.ImageArrayProxy(vtcf, hdr_copy)
-        img = klass(data, affine=None, header, file_map=file_map)
+        # use row-major memory presentation!
+        data = klass.ImageArrayProxy(vtcf, hdr_copy, order='C')
+        img = klass(data, None, header, file_map)
         img._load_cache = {'header': hdr_copy,
                            'affine': None,
                            'file_map': copy_file_map(file_map)}
@@ -1097,7 +1029,7 @@ class VtcImage(SpatialImage):
             raise HeaderDataError('Data should be shape (%s)' %
                                   ', '.join(str(s) for s in shape))
         seek_tell(vtcf, hdr.get_data_offset())
-        arr_writer.to_fileobj(vtcf)
+        arr_writer.to_fileobj(vtcf, order='C')
         vtcf.close_if_mine()
         self._header = hdr
         self.file_map = file_map

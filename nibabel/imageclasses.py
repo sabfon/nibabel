@@ -20,6 +20,7 @@ from .parrec import PARRECImage
 from .spm99analyze import Spm99AnalyzeImage
 from .spm2analyze import Spm2AnalyzeImage
 from .volumeutils import Recoder
+from .bv import VtcImage
 
 from .optpkg import optional_package
 _, have_scipy, _ = optional_package('scipy')
