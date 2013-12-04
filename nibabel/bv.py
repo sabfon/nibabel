@@ -12,15 +12,14 @@ Author: Thomas Emmerling
 '''
 
 import numpy as np
-from py3k import asbytes
 
-from nibabel.volumeutils import allopen, array_to_file, array_from_file, Recoder
-from nibabel.spatialimages import HeaderDataError, HeaderTypeError, ImageFileError, SpatialImage, Header
-from nibabel.fileholders import FileHolder,  copy_file_map
-from nibabel.arrayproxy import ArrayProxy
-from nibabel.volumeutils import (shape_zoom_affine, apply_read_scaling, seek_tell, make_dt_codes,
+from .volumeutils import allopen, array_to_file, array_from_file, Recoder
+from .spatialimages import HeaderDataError, HeaderTypeError, ImageFileError, SpatialImage, Header
+from .fileholders import FileHolder,  copy_file_map
+from .arrayproxy import ArrayProxy
+from .volumeutils import (shape_zoom_affine, apply_read_scaling, seek_tell, make_dt_codes,
                                  pretty_mapping, endian_codes, native_code, swapped_code)
-from nibabel.arraywriters import make_array_writer, WriterError, get_slope_inter
+from .arraywriters import make_array_writer, WriterError, get_slope_inter
 from .wrapstruct import LabeledWrapStruct
 from . import imageglobals as imageglobals
 from .batteryrunners import Report, BatteryRunner
@@ -748,183 +747,12 @@ class BvFileHeader(object):
         raise HeaderTypeError('Cannot set slope != 1 or intercept != 0 '
                               'for BV headers')
 
-    @classmethod
-    def _get_checks(klass):
-        ''' Return sequence of check functions for this class '''
-        return (klass._chk_fileversion,
-                klass._chk_sizeof_hdr,
-                klass._chk_datatype,
-                )
-
-    ''' Check functions in format expected by BatteryRunner class '''
-
-    @classmethod
-    def _chk_fileversion(klass, hdr, fix=False):
-        rep = Report(HeaderDataError)
-        if hdr['version'] == 3:
-            return hdr, rep
-        rep.problem_level = 40
-        rep.problem_msg = 'only fileversion 3 is supported at the moment!'
-        if fix:
-            rep.fix_msg = 'not attempting fix'
-        return hdr, rep
-
-    @classmethod
-    def _chk_sizeof_hdr(klass, hdr, fix=False):
-        rep = Report(HeaderDataError)
-        if hdr.template_dtype.itemsize == len(hdr.binaryblock):
-            return hdr, rep
-        rep.problem_level = 40
-        rep.problem_msg = 'size of binaryblock should be ' + str(hdr.template_dtype.itemsize)
-        if fix:
-            rep.fix_msg = 'not attempting fix'
-        return hdr, rep
-
-    @classmethod
-    def _chk_datatype(klass, hdr, fix=False):
-        rep = Report(HeaderDataError)
-        code = int(hdr['datatype'])
-        try:
-            dtype = klass._data_type_codes.dtype[code]
-        except KeyError:
-            rep.problem_level = 40
-            rep.problem_msg = 'data code %d not recognized' % code
-        else:
-            if dtype.itemsize == 0:
-                rep.problem_level = 40
-                rep.problem_msg = 'data code %d not supported' % code
-            else:
-                return hdr, rep
-        if fix:
-            rep.fix_msg = 'not attempting fix'
-        return hdr, rep
-
-class VtcHeader(BvFileHeader):
-    def get_data_shape(self):
-        ''' Get shape of data
-        '''
-        hdr = self._structarr
-        # calculate dimensions
-        z = (hdr['ZEnd'] - hdr['ZStart']) / hdr['relResolution']
-        y = (hdr['YEnd'] - hdr['YStart']) / hdr['relResolution']
-        x = (hdr['XEnd'] - hdr['XStart']) / hdr['relResolution']
-        t = hdr['volumes']
-        return tuple(int(d) for d in [z,y,x,t])
-        #return tuple(int(d) for d in [t,x,y,z])
-
-    def update_template_dtype(self,binaryblock=None, item=None, value=None):
-        if binaryblock is None:
-            binaryblock = self.binaryblock
-
-        # find length of fmr filename (start search after the first 2 bytes)
-        # include the stop byte ('\x00') in the string
-        fmrl = binaryblock.find('\x00', 2) - 1
-        fmrlt = 'S' + str(fmrl)
-
-        # find number of linked PRTs
-        nPrt = int(np.fromstring(binaryblock[2+fmrl:2+fmrl+2],np.uint16))
-
-        # find length of name(s) of linked PRT(s)
-        if nPrt == 0:
-            prts = [('prt1', 'S0')]
-        else:
-            prts = []
-            point = 2 + fmrl + 3
-            for prt in range(nPrt):
-                prtl = binaryblock.find('\x00', point) - (point-2)
-                prts.append(('prt' + str(prt+1), 'S' + str(prtl)))
-                point += prtl
-
-        if len(prts)==1:
-            prts = prts[0]
-        else:
-            prts = ('prts', prts)
-
-        vtc_header_dtd = \
-            [
-                ('version', 'i2'),
-                ('fmr', 'S9'),
-                ('nPrt', 'i2'),
-                prts,
-                ('currentPrt', 'i2'),
-                ('datatype', 'i2'),
-                ('volumes', 'i2'),
-                ('relResolution', 'i2'),
-                ('XStart', 'i2'),
-                ('XEnd', 'i2'),
-                ('YStart', 'i2'),
-                ('YEnd', 'i2'),
-                ('ZStart', 'i2'),
-                ('ZEnd', 'i2'),
-                ('LRConvention', 'i1'),
-                ('RefSpace', 'i1'),
-                ('TR', 'f4'),
-            ]
-
-        if item is not None:
-            vtc_header_dtd = [(x[0], x[1]) if x[0] != item else (item, 'S'+str(len(value)+1)) for x in vtc_header_dtd]
-        
-        dt = np.dtype(vtc_header_dtd)
-        self.set_data_offset(dt.itemsize)
-        self.template_dtype = dt
-
-        return dt
-
-    @classmethod
-    def default_structarr(klass, endianness=None):
-        ''' Return header data for empty header with given endianness
-        '''
-
-        vtc_header_dtd = \
-            [
-                ('version', 'i2'),
-                ('fmr', 'S0'),
-                ('nPrt', 'i2'),
-                ('prts', 'S0'),
-                ('currentPrt', 'i2'),
-                ('datatype', 'i2'),
-                ('volumes', 'i2'),
-                ('relResolution', 'i2'),
-                ('XStart', 'i2'),
-                ('XEnd', 'i2'),
-                ('YStart', 'i2'),
-                ('YEnd', 'i2'),
-                ('ZStart', 'i2'),
-                ('ZEnd', 'i2'),
-                ('LRConvention', 'i1'),
-                ('RefSpace', 'i1'),
-                ('TR', 'f4')
-            ]
-
-        dt = np.dtype(vtc_header_dtd)
-        hdr = np.zeros((), dtype=dt)
-
-        hdr['version'] = 3
-        hdr['fmr'] = ''
-        hdr['nPrt'] = 0
-        hdr['prts'] = ''
-        hdr['currentPrt'] = 0
-        hdr['datatype'] = 2
-        hdr['volumes'] = 0
-        hdr['relResolution'] = 3
-        hdr['XStart'] = 57
-        hdr['XEnd'] = 231
-        hdr['YStart'] = 52
-        hdr['YEnd'] = 172
-        hdr['ZStart'] = 59
-        hdr['ZEnd'] = 197
-        hdr['LRConvention'] = 1
-        hdr['RefSpace'] = 3
-        hdr['TR'] = 2000
-
-        return hdr
-
-class VtcImage(SpatialImage):
+class BvFileImage(SpatialImage):
     # Set the class of the corresponding header
-    header_class = VtcHeader
+    header_class = BvFileHeader
 
-    # Set the label ('image') and the extension ('.vtc') for a VTC file
-    files_types = (('image', '.vtc'),)
+    # Set the label ('image') and the extension ('.bv') for a (dummy) BV file
+    files_types = (('image', '.bv'),)
 
     # BV files are not compressed...
     _compressed_exts = ()
@@ -953,11 +781,11 @@ class VtcImage(SpatialImage):
            files mapping.  If None (default) use object's ``file_map``
            attribute instead
         '''
-        vtcf = file_map['image'].get_prepare_fileobj('rb')
-        header = klass.header_class.from_fileobj(vtcf)
+        bvf = file_map['image'].get_prepare_fileobj('rb')
+        header = klass.header_class.from_fileobj(bvf)
         hdr_copy = header.copy()
         # use row-major memory presentation!
-        data = klass.ImageArrayProxy(vtcf, hdr_copy, order='C')
+        data = klass.ImageArrayProxy(bvf, hdr_copy, order='C')
         img = klass(data, None, header, file_map)
         img._load_cache = {'header': hdr_copy,
                            'affine': None,
@@ -980,7 +808,7 @@ class VtcImage(SpatialImage):
         header.set_slope_inter(slope, inter)
         header.write_to(header_file)
 
-    def _write_data(self, vtcfile, data, header):
+    def _write_data(self, bvfile, data, header):
         ''' Utility routine to write VTC image
 
         Parameters
@@ -999,7 +827,7 @@ class VtcImage(SpatialImage):
                                   ', '.join(str(s) for s in shape))
         offset = header.get_data_offset()
         out_dtype = header.get_data_dtype()
-        array_to_file(data, vtcfile, out_dtype, offset)
+        array_to_file(data, bvfile, out_dtype, offset)
 
     def to_file_map(self, file_map=None):
         ''' Write image to `file_map` or contained ``self.file_map``
@@ -1020,19 +848,16 @@ class VtcImage(SpatialImage):
                                        out_dtype,
                                        hdr.has_data_slope,
                                        hdr.has_data_intercept)
-        vtcf = file_map['image'].get_prepare_fileobj('wb')
+        bvf = file_map['image'].get_prepare_fileobj('wb')
         slope, inter = get_slope_inter(arr_writer)
-        self._write_header(vtcf, hdr, slope, inter)
+        self._write_header(bvf, hdr, slope, inter)
         # Write image
         shape = hdr.get_data_shape()
         if data.shape != shape:
             raise HeaderDataError('Data should be shape (%s)' %
                                   ', '.join(str(s) for s in shape))
-        seek_tell(vtcf, hdr.get_data_offset())
-        arr_writer.to_fileobj(vtcf, order='C')
-        vtcf.close_if_mine()
+        seek_tell(bvf, hdr.get_data_offset())
+        arr_writer.to_fileobj(bvf, order='C')
+        bvf.close_if_mine()
         self._header = hdr
         self.file_map = file_map
-
-load = VtcImage.load
-save = VtcImage.instance_to_filename
