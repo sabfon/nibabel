@@ -112,7 +112,7 @@ class MskImage(BvFileImage):
     # Set the class of the corresponding header
     header_class = MskHeader
 
-    # Set the label ('image') and the extension ('.vtc') for a VTC file
+    # Set the label ('image') and the extension ('.msk') for a MSK file
     files_types = (('image', '.msk'),)
 
 load = MskImage.load

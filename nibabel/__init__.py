@@ -52,6 +52,7 @@ from .minc1 import Minc1Image
 from .minc2 import Minc2Image
 from .bv_vtc import VtcHeader,VtcImage
 from .bv_msk import MskHeader,MskImage
+from .bv_vmp import VmpHeader,VmpImage
 # Deprecated backwards compatiblity for MINC1
 from .deprecated import ModuleProxy as _ModuleProxy
 minc = _ModuleProxy('nibabel.minc')

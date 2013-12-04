@@ -24,34 +24,6 @@ from .wrapstruct import LabeledWrapStruct
 from . import imageglobals as imageglobals
 from .batteryrunners import Report, BatteryRunner
 
-# List of fields to expect in MSK header
-msk_header_dtype = [
-    ('relResolution', 'i2'),
-    ('XStart', 'i2'),
-    ('XEnd', 'i2'),
-    ('YStart', 'i2'),
-    ('YEnd', 'i2'),
-    ('ZStart', 'i2'),
-    ('ZEnd', 'i2')
-    ]
-
-# List of fields to expect in VMP header
-vmp_header_dtype = [
-    ('version', 'i2'),
-    ('type', 'i2'),
-    ('volumes', 'i2'),
-    ('relResolution', 'i2'),
-    ('XStart', 'i2'),
-    ('XEnd', 'i2'),
-    ('YStart', 'i2'),
-    ('YEnd', 'i2'),
-    ('ZStart', 'i2'),
-    ('ZEnd', 'i2'),
-    ('LRConvention', 'i1'),
-    ('RefSpace', 'i1'),
-    ('TR', 'f4'),
-    ]
-
 _dtdefs = ( # code, conversion function, equivalent dtype, aliases
     (1, 'short int', np.dtype(np.uint16).newbyteorder('<')),
     (2, 'float', np.dtype(np.float32).newbyteorder('<')))
@@ -131,7 +103,7 @@ class BvFileHeader(object):
         wstr : WrapStruct object
            WrapStruct object initialized from data in fileobj
         '''
-        raw_str = fileobj.read(5000)
+        raw_str = fileobj.read(10000)
         return klass(raw_str, endianness, check)
 
     @property

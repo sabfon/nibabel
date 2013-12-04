@@ -16,6 +16,7 @@ from .freesurfer import MGHImage
 from .volumeutils import Recoder
 from .bv_vtc import VtcImage
 from .bv_msk import MskImage
+from .bv_vmp import VmpImage
 
 # If we don't have scipy, then we cannot write SPM format files
 try:
@@ -66,6 +67,10 @@ class_map = {
     'msk':{'class': MskImage,
            'ext': '.msk',
            'has_affine': False,
+           'rw':True},
+    'vmp':{'class': VmpImage,
+           'ext': '.vmp',
+           'has_affine': False,
            'rw':True}}
 
 
@@ -78,4 +83,5 @@ ext_map = Recoder((
     ('mgh', '.mgh'),
     ('mgz', '.mgz'),
     ('vtc', '.vtc'),
-    ('msk', '.msk')))
+    ('msk', '.msk'),
+    ('vmp', '.vmp')))
