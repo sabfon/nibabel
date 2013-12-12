@@ -28,6 +28,41 @@ class VtcHeader(BvFileHeader):
         t = hdr['volumes']
         return tuple(int(d) for d in [z,y,x,t])
 
+    def set_data_shape(self, shape=None, zyx=None, t=None):
+        ''' Set shape of data
+        To conform with nibabel standards this implements shape.
+        However, to fill the VtcHeader with sensible information use the zyxt parameter instead.
+
+        Parameters
+        ----------
+        shape : sequence
+           sequence of integers specifying data array shape
+        zyxt: 3x2 nested list [[1,2],[3,4],[5,6]]
+           array storing borders of data
+        t: int
+           number of volumes
+
+        '''
+        if (shape is None) and (zyx is None) and (t is None):
+            raise BvError('Shape, zyx, or t needs to be specified!')
+        if shape is not None:
+            # Use zyx and t parameters instead of shape. Dimensions will start from standard coordinates.
+            if len(shape) != 4:
+                raise BvError('Shape for VTC files must be 4 dimensional!')
+            self._structarr['XEnd'] = 57 + (shape[0] * self._structarr['relResolution'])
+            self._structarr['YEnd'] = 52 + (shape[1] * self._structarr['relResolution'])
+            self._structarr['ZEnd'] = 59 + (shape[2] * self._structarr['relResolution'])
+            self._structarr['volumes'] = shape[3]
+            return
+        self._structarr['XStart'] = zyx[0][0]
+        self._structarr['XEnd'] = zyx[0][1]
+        self._structarr['YStart'] = zyx[1][0]
+        self._structarr['YEnd'] = zyx[1][1]
+        self._structarr['ZStart'] = zyx[2][0]
+        self._structarr['ZEnd'] = zyx[2][1]
+        if t is not None:
+            self._structarr['volumes'] = t
+
     def update_template_dtype(self,binaryblock=None, item=None, value=None):
         if binaryblock is None:
             binaryblock = self.binaryblock
