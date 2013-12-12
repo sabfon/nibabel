@@ -110,13 +110,7 @@ class BvFileHeader(LabeledWrapStruct):
 
     def __setitem__(self, item, value):
         ''' Set values in structured data
-
-        Examples
-        --------
-        >>> hdr = BvFileHeader()
-        >>> hdr['integer'] = 3
-        >>> hdr['integer']
-        array(3, dtype=int16)
+        check for string values and change the template accordingly
         '''
         if self.template_dtype[item].type == np.string_:
             self.update_template_dtype(item=item, value=value)

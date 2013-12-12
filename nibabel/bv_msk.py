@@ -43,6 +43,36 @@ class MskHeader(BvFileHeader):
 
         return tuple(int(d) for d in [z,y,x])
 
+    def set_data_shape(self, shape=None, zyx=None):
+        ''' Set shape of data
+        To conform with nibabel standards this implements shape.
+        However, to fill the VtcHeader with sensible information use the zyxt parameter instead.
+
+        Parameters
+        ----------
+        shape : sequence
+           sequence of integers specifying data array shape
+        zyx: 3x2 nested list [[XStart,XEnd],[YStart,YEnd],[ZStart,ZEnd]]
+           array storing borders of data
+
+        '''
+        if (shape is None) and (zyx is None):
+            raise BvError('Shape or zyx needs to be specified!')
+        if shape is not None:
+            # Use zyx and t parameters instead of shape. Dimensions will start from standard coordinates.
+            if len(shape) != 3:
+                raise BvError('Shape for MSK files must be 4 dimensional!')
+            self._structarr['XEnd'] = 57 + (shape[0] * self._structarr['relResolution'])
+            self._structarr['YEnd'] = 52 + (shape[1] * self._structarr['relResolution'])
+            self._structarr['ZEnd'] = 59 + (shape[2] * self._structarr['relResolution'])
+            return
+        self._structarr['XStart'] = zyx[0][0]
+        self._structarr['XEnd'] = zyx[0][1]
+        self._structarr['YStart'] = zyx[1][0]
+        self._structarr['YEnd'] = zyx[1][1]
+        self._structarr['ZStart'] = zyx[2][0]
+        self._structarr['ZEnd'] = zyx[2][1]
+
     def update_template_dtype(self,binaryblock=None, item=None, value=None):
 
         msk_header_dtd = \
