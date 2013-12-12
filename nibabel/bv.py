@@ -16,7 +16,7 @@ import numpy as np
 from .volumeutils import allopen, array_to_file, array_from_file, Recoder
 from .spatialimages import HeaderDataError, HeaderTypeError, ImageFileError, SpatialImage, Header
 from .fileholders import FileHolder,  copy_file_map
-from .arrayproxy import ArrayProxy
+from .arrayproxy import CArrayProxy
 from .volumeutils import (shape_zoom_affine, apply_read_scaling, seek_tell, make_dt_codes,
                                  pretty_mapping, endian_codes, native_code, swapped_code)
 from .arraywriters import make_array_writer, WriterError, get_slope_inter
@@ -730,7 +730,7 @@ class BvFileImage(SpatialImage):
     _compressed_exts = ()
 
     # use the standard ArrayProxy
-    ImageArrayProxy = ArrayProxy
+    ImageArrayProxy = CArrayProxy
 
     def get_header(self):
         ''' Return header
@@ -757,7 +757,7 @@ class BvFileImage(SpatialImage):
         header = klass.header_class.from_fileobj(bvf)
         hdr_copy = header.copy()
         # use row-major memory presentation!
-        data = klass.ImageArrayProxy(bvf, hdr_copy, order='C')
+        data = klass.ImageArrayProxy(bvf, hdr_copy)
         img = klass(data, None, header, file_map)
         img._load_cache = {'header': hdr_copy,
                            'affine': None,
