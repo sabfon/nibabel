@@ -6,40 +6,47 @@
 #   copyright and license terms.
 #
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
-''' Header reading / writing functions for Brainvoyager (BV) file formats
+''' Reading / writing functions for Brainvoyager (BV) MSK files
+
+for documentation on the file format see:
+http://www.brainvoyager.com/ubb/Forum8/HTML/000087.html
 
 Author: Thomas Emmerling
 '''
 
 import numpy as np
-from .bv import BvError,BvFileHeader,BvFileImage, data_type_codes
+from .bv import BvError,BvFileHeader,BvFileImage
 
-# List of fields to expect in VMP header
-vmp_header_dtype = [
-    ('version', 'i2'),
-    ('type', 'i2'),
-    ('volumes', 'i2'),
-    ('relResolution', 'i2'),
-    ('XStart', 'i2'),
-    ('XEnd', 'i2'),
-    ('YStart', 'i2'),
-    ('YEnd', 'i2'),
-    ('ZStart', 'i2'),
-    ('ZEnd', 'i2'),
-    ('LRConvention', 'i1'),
-    ('RefSpace', 'i1'),
-    ('TR', 'f4'),
+# template for MSK header
+msk_header_dtd = \
+    [
+        ('Resolution', 'i2'),
+        ('XStart', 'i2'),
+        ('XEnd', 'i2'),
+        ('YStart', 'i2'),
+        ('YEnd', 'i2'),
+        ('ZStart', 'i2'),
+        ('ZEnd', 'i2')
     ]
 
 class MskHeader(BvFileHeader):
+    '''Class for BrainVoyager MSK header
+    '''
+    #copy of module-level template definition
+    template = msk_header_dtd
+
+    # format defaults
+    allowed_dtypes = [3]
+    default_dtype = 3
+
     def get_data_shape(self):
         ''' Get shape of data
         '''
         hdr = self._structarr
         # calculate dimensions
-        z = (hdr['ZEnd'] - hdr['ZStart']) / hdr['relResolution']
-        y = (hdr['YEnd'] - hdr['YStart']) / hdr['relResolution']
-        x = (hdr['XEnd'] - hdr['XStart']) / hdr['relResolution']
+        z = (hdr['ZEnd'] - hdr['ZStart']) / hdr['Resolution']
+        y = (hdr['YEnd'] - hdr['YStart']) / hdr['Resolution']
+        x = (hdr['XEnd'] - hdr['XStart']) / hdr['Resolution']
 
         return tuple(int(d) for d in [z,y,x])
 
@@ -61,10 +68,10 @@ class MskHeader(BvFileHeader):
         if shape is not None:
             # Use zyx and t parameters instead of shape. Dimensions will start from standard coordinates.
             if len(shape) != 3:
-                raise BvError('Shape for MSK files must be 4 dimensional!')
-            self._structarr['XEnd'] = 57 + (shape[0] * self._structarr['relResolution'])
-            self._structarr['YEnd'] = 52 + (shape[1] * self._structarr['relResolution'])
-            self._structarr['ZEnd'] = 59 + (shape[2] * self._structarr['relResolution'])
+                raise BvError('Shape for MSK files must be 3 dimensional!')
+            self._structarr['XEnd'] = 57 + (shape[2] * self._structarr['Resolution'])
+            self._structarr['YEnd'] = 52 + (shape[1] * self._structarr['Resolution'])
+            self._structarr['ZEnd'] = 59 + (shape[0] * self._structarr['Resolution'])
             return
         self._structarr['XStart'] = zyx[0][0]
         self._structarr['XEnd'] = zyx[0][1]
@@ -74,19 +81,7 @@ class MskHeader(BvFileHeader):
         self._structarr['ZEnd'] = zyx[2][1]
 
     def update_template_dtype(self,binaryblock=None, item=None, value=None):
-
-        msk_header_dtd = \
-            [
-                ('relResolution', 'i2'),
-                ('XStart', 'i2'),
-                ('XEnd', 'i2'),
-                ('YStart', 'i2'),
-                ('YEnd', 'i2'),
-                ('ZStart', 'i2'),
-                ('ZEnd', 'i2')
-            ]
-
-        dt = np.dtype(msk_header_dtd)
+        dt = np.dtype(self.template)
         self.set_data_offset(dt.itemsize)
         self.template_dtype = dt
 
@@ -94,24 +89,12 @@ class MskHeader(BvFileHeader):
 
     @classmethod
     def default_structarr(klass):
-        ''' Return header data for empty header
+        ''' Return header data for empty header (filled with standard values from BV documentation)
         '''
-
-        msk_header_dtd = \
-            [
-                ('relResolution', 'i2'),
-                ('XStart', 'i2'),
-                ('XEnd', 'i2'),
-                ('YStart', 'i2'),
-                ('YEnd', 'i2'),
-                ('ZStart', 'i2'),
-                ('ZEnd', 'i2')
-            ]
-
-        dt = np.dtype(msk_header_dtd)
+        dt = np.dtype(klass.template)
         hdr = np.zeros((), dtype=dt)
 
-        hdr['relResolution'] = 3
+        hdr['Resolution'] = 3
         hdr['XStart'] = 57
         hdr['XEnd'] = 231
         hdr['YStart'] = 52
@@ -121,24 +104,15 @@ class MskHeader(BvFileHeader):
 
         return hdr
 
-    def get_data_dtype(self):
-        ''' Get numpy dtype for data
-
-        For examples see ``set_data_dtype``
-        '''
-        return np.uint8
-
-    def set_data_dtype(self, datatype):
-        ''' Set numpy dtype for data from code or dtype or type
-        '''
-        raise BvError('Mask files can only be np.uint8!')
-
     @classmethod
     def _get_checks(klass):
         ''' Return sequence of check functions for this class '''
         return ()
 
 class MskImage(BvFileImage):
+    ''' Class for BrainVoyager MSK masks
+    MSK files are technically binary images
+    '''
     # Set the class of the corresponding header
     header_class = MskHeader
 

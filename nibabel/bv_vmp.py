@@ -6,17 +6,112 @@
 #   copyright and license terms.
 #
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
-''' Header reading / writing functions for Brainvoyager (BV) file formats
+''' Reading / writing functions for Brainvoyager (BV) VMP files
+
+for documentation on the file format see:
+http://support.brainvoyager.com/installation-introduction/23-file-formats/377-users-guide-23-the-format-of-nr-vmp-files.html
 
 Author: Thomas Emmerling
 '''
 
 import numpy as np
-from .bv import BvError,BvFileHeader,BvFileImage, data_type_codes
+from .bv import BvError,BvFileHeader,BvFileImage
 from .spatialimages import HeaderDataError, HeaderTypeError
 from .batteryrunners import Report
 
+def _make_vmp_header_dtd(vtclt,prtlt,voilt):
+    ''' Helper for creating a VMP header dtype with given parameters
+    '''
+    vmp_header_dtd = \
+        [
+            ('MagicNumber', 'i4'),
+            ('VersionNumber', 'i2'),
+            ('DocumentType', 'i2'),
+            ('NrOfSubMaps', 'i4'),
+            ('NrOfTimePoints', 'i4'),
+            ('NrOfComponentParams', 'i4'),
+            ('ShowParamsRangeFrom', 'i4'),
+            ('ShowParamsRangeTo', 'i4'),
+            ('UseForFingerprintParamsRangeFrom', 'i4'),
+            ('UseForFingerprintParamsRangeTo', 'i4'),
+            ('XStart', 'i4'),
+            ('XEnd', 'i4'),
+            ('YStart', 'i4'),
+            ('YEnd', 'i4'),
+            ('ZStart', 'i4'),
+            ('ZEnd', 'i4'),
+            ('Resolution', 'i4'),
+            ('DimX', 'i4'),
+            ('DimY', 'i4'),
+            ('DimZ', 'i4'),
+            ('NameOfVTCFile', vtclt),
+            ('NameOfProtocolFile', prtlt),
+            ('NameOfVOIRFile', voilt)
+        ]
+    return vmp_header_dtd
+
+def _make_vmp_submap_header_dtd(submap,maplt,lutlt,mStore,fdrl):
+    ''' Helper for creating a VMP submap header dtype with given parameters
+    '''
+    vmp_submap_header_dtd = \
+        (
+            'map' + str(submap+1),[
+                ('TypeOfMap', 'i4'),
+                ('MapThreshold', 'i4'),
+                ('UpperThreshold', 'i4'),
+                ('MapName', maplt),
+                ('PosMin', [
+                    ('R', 'b'),
+                    ('G', 'b'),
+                    ('B', 'b')
+                ]),
+                ('PosMax', [
+                    ('R', 'b'),
+                    ('G', 'b'),
+                    ('B', 'b')
+                ]),
+                ('NegMin', [
+                    ('R', 'b'),
+                    ('G', 'b'),
+                    ('B', 'b')
+                ]),
+                ('NegMax', [
+                    ('R', 'b'),
+                    ('G', 'b'),
+                    ('B', 'b')
+                ]),
+                ('UseVMPColor', 'b'),
+                ('LUTFileName', lutlt),
+                ('TransparentColorFactor', 'f4'),
+                ('NrOfLags', 'i4', (mStore,)),
+                ('DisplayMinLag', 'i4', (mStore,)),
+                ('DisplayMaxLag', 'i4', (mStore,)),
+                ('ShowCorrelationOrLag', 'i4', (mStore,)),
+                ('ClusterSizeThreshold', 'i4'),
+                ('EnableClusterSizeThreshold', 'b'),
+                ('ShowValuesAboveUpperThreshold', 'i4'),
+                ('DF1', 'i4'),
+                ('DF2', 'i4'),
+                ('ShowPosNegValues', 'b'),
+                ('NrOfUsedVoxels', 'i4'),
+                ('SizeOfFDRTable', 'i4'),
+                ('FDRTableInfo', [
+                    ('q', 'f4'),
+                    ('critStandard', 'f4'),
+                    ('critConservative', 'f4')
+                ], (fdrl,)),
+                ('UseFDRTableIndex', 'i4')
+            ]
+        )
+    return vmp_submap_header_dtd
+
 class VmpHeader(BvFileHeader):
+    ''' Class for BrainVoyager NR-VMP header
+    '''
+
+    # format defaults
+    allowed_dtypes = [2]
+
     def get_data_shape(self):
         ''' Get shape of data
         '''
@@ -44,38 +139,39 @@ class VmpHeader(BvFileHeader):
 
         '''
         if (shape is None) and (zyx is None) and (n is None):
-            raise BvError('Shape, zyx, or t needs to be specified!')
+            raise BvError('Shape, zyx, or n needs to be specified!')
         if shape is not None:
-            # Use zyx and t parameters instead of shape. Dimensions will start from standard coordinates.
+            # Use zyx and t parameters instead of shape. Dimensions will start from default coordinates.
             if len(shape) != 4:
-                raise BvError('Shape for VMP files must be 4 dimensional!')
-            self._structarr['XEnd'] = 57 + (shape[0] * self._structarr['Resolution'])
-            self._structarr['YEnd'] = 52 + (shape[1] * self._structarr['Resolution'])
-            self._structarr['ZEnd'] = 59 + (shape[2] * self._structarr['Resolution'])
-            self._structarr['NrOfSubMaps'] = shape[3]
+                raise BvError('Shape for VMP files must be 4 dimensional (NZYX)!')
+            self._structarr['XEnd'] = 57 + (shape[3] * self._structarr['Resolution'])
+            self._structarr['YEnd'] = 52 + (shape[2] * self._structarr['Resolution'])
+            self._structarr['ZEnd'] = 59 + (shape[1] * self._structarr['Resolution'])
+            self._structarr['NrOfSubMaps'] = shape[0]
             return
-        self._structarr['XStart'] = zyx[0][0]
-        self._structarr['XEnd'] = zyx[0][1]
+        self._structarr['XStart'] = zyx[2][0]
+        self._structarr['XEnd'] = zyx[2][1]
         self._structarr['YStart'] = zyx[1][0]
         self._structarr['YEnd'] = zyx[1][1]
-        self._structarr['ZStart'] = zyx[2][0]
-        self._structarr['ZEnd'] = zyx[2][1]
+        self._structarr['ZStart'] = zyx[0][0]
+        self._structarr['ZEnd'] = zyx[0][1]
         if n is not None:
             self._structarr['NrOfSubMaps'] = n
 
-    def get_data_dtype(self):
-        ''' Get numpy dtype for data
-
-        For examples see ``set_data_dtype``
+    def get_framing_cube(self):
+        ''' Get the dimensions of the framing cube that constitutes the coordinate system boundaries for the bounding box
         '''
-        dtype = self._data_type_codes.dtype[2]
-        return dtype.newbyteorder(self.endianness)
+        hdr = self._structarr
+        return hdr['DimZ'], hdr['DimY'], hdr['DimX']
 
-    def set_data_dtype(self, datatype):
-        ''' Set numpy dtype for data from code or dtype or type
+    def set_framing_cube(self, fc):
+        ''' Set the dimensions of the framing cube that constitutes the coordinate system boundaries for the bounding box
+        For VMP files this puts the values also into the header
         '''
-        if datatype != self._data_type_codes.dtype[2]:
-            raise BvError('Cannot set different dtype for VMP files!')
+        self._structarr['DimZ'] = fc[0]
+        self._structarr['DimY'] = fc[1]
+        self._structarr['DimX'] = fc[2]
+        self._framing_cube = fc
 
     def update_template_dtype(self,binaryblock=None, item=None, value=None):
         if binaryblock is None:
@@ -115,32 +211,7 @@ class VmpHeader(BvFileHeader):
         point += voil
 
         # assemble first part of header dtype
-        vmp_header_dtd = \
-            [
-                ('MagicNumber', 'i4'),
-                ('VersionNumber', 'i2'),
-                ('DocumentType', 'i2'),
-                ('NrOfSubMaps', 'i4'),
-                ('NrOfTimePoints', 'i4'),
-                ('NrOfComponentParams', 'i4'),
-                ('ShowParamsRangeFrom', 'i4'),
-                ('ShowParamsRangeTo', 'i4'),
-                ('UseForFingerprintParamsRangeFrom', 'i4'),
-                ('UseForFingerprintParamsRangeTo', 'i4'),
-                ('XStart', 'i4'),
-                ('XEnd', 'i4'),
-                ('YStart', 'i4'),
-                ('YEnd', 'i4'),
-                ('ZStart', 'i4'),
-                ('ZEnd', 'i4'),
-                ('Resolution', 'i4'),
-                ('DimX', 'i4'),
-                ('DimY', 'i4'),
-                ('DimZ', 'i4'),
-                ('NameOfVTCFile', vtclt),
-                ('NameOfProtocolFile', prtlt),
-                ('NameOfVOIRFile', voilt)
-            ]
+        newTemplate = _make_vmp_header_dtd(vtclt,prtlt,voilt)
 
         ## start to pre-parse through loop over NrOfSubMaps
         for submap in range(nSubMaps):
@@ -165,64 +236,15 @@ class VmpHeader(BvFileHeader):
             else:
                 point += (lutl + 26)
 
-            # find size of FRD table
+            # find size of FDR table
             fdrl = int(np.fromstring(binaryblock[point:point+4],np.uint32))
             point += (8 + (3*4*fdrl))
 
-            vmp_header_dtd.append(
-                (
-                    'map' + str(submap+1),[
-                        ('TypeOfMap', 'i4'),
-                        ('MapThreshold', 'i4'),
-                        ('UpperThreshold', 'i4'),
-                        ('MapName', maplt),
-                        ('PosMin', [
-                            ('R', 'b'),
-                            ('G', 'b'),
-                            ('B', 'b')
-                        ]),
-                        ('PosMax', [
-                            ('R', 'b'),
-                            ('G', 'b'),
-                            ('B', 'b')
-                        ]),
-                        ('NegMin', [
-                            ('R', 'b'),
-                            ('G', 'b'),
-                            ('B', 'b')
-                        ]),
-                        ('NegMax', [
-                            ('R', 'b'),
-                            ('G', 'b'),
-                            ('B', 'b')
-                        ]),
-                        ('UseVMPColor', 'b'),
-                        ('LUTFileName', lutlt),
-                        ('TransparentColorFactor', 'f4'),
-                        ('NrOfLags', 'i4', (mStore,)),
-                        ('DisplayMinLag', 'i4', (mStore,)),
-                        ('DisplayMaxLag', 'i4', (mStore,)),
-                        ('ShowCorrelationOrLag', 'i4', (mStore,)),
-                        ('ClusterSizeThreshold', 'i4'),
-                        ('EnableClusterSizeThreshold', 'b'),
-                        ('ShowValuesAboveUpperThreshold', 'i4'),
-                        ('DF1', 'i4'),
-                        ('DF2', 'i4'),
-                        ('ShowPosNegValues', 'b'),
-                        ('NrOfUsedVoxels', 'i4'),
-                        ('SizeOfFDRTable', 'i4'),
-                        ('FDRTableInfo', [
-                            ('q', 'f4'),
-                            ('critStandard', 'f4'),
-                            ('critConservative', 'f4')
-                        ], (fdrl,)),
-                        ('UseFDRTableIndex', 'i4')
-                    ]
-                )
-            )
+            # append the new submap to the header template
+            newTemplate.append(_make_vmp_submap_header_dtd(submap,maplt,lutlt,mStore,fdrl))
 
         ## append loop for time course values
-        vmp_header_dtd.append(
+        newTemplate.append(
             ('timepoint', 'f4', (nTimePoints,))
         )
 
@@ -242,12 +264,12 @@ class VmpHeader(BvFileHeader):
 
         # append component parameters
         if nComponentParams != 0:
-            vmp_header_dtd.append(componentparams)
+            newTemplate.append(componentparams)
 
         if item is not None:
-            vmp_header_dtd = [(x[0], x[1]) if x[0] != item else (item, 'S'+str(len(value)+1)) for x in vmp_header_dtd]
+            newTemplate = [(x[0], x[1]) if x[0] != item else (item, 'S'+str(len(value)+1)) for x in newTemplate]
         
-        dt = np.dtype(vmp_header_dtd)
+        dt = np.dtype(newTemplate)
         self.set_data_offset(dt.itemsize)
         self.template_dtype = dt
 
@@ -256,84 +278,13 @@ class VmpHeader(BvFileHeader):
     @classmethod
     def default_structarr(klass, endianness=None):
         ''' Return header data for empty header with given endianness
+        (filled with standard values from the BV documentation)
         '''
 
-        vtc_header_dtd = \
-            [
-                ('MagicNumber', 'i4'),
-                ('VersionNumber', 'i2'),
-                ('DocumentType', 'i2'),
-                ('NrOfSubMaps', 'i4'),
-                ('NrOfTimePoints', 'i4'),
-                ('NrOfComponentParams', 'i4'),
-                ('ShowParamsRangeFrom', 'i4'),
-                ('ShowParamsRangeTo', 'i4'),
-                ('UseForFingerprintParamsRangeFrom', 'i4'),
-                ('UseForFingerprintParamsRangeTo', 'i4'),
-                ('XStart', 'i4'),
-                ('XEnd', 'i4'),
-                ('YStart', 'i4'),
-                ('YEnd', 'i4'),
-                ('ZStart', 'i4'),
-                ('ZEnd', 'i4'),
-                ('Resolution', 'i4'),
-                ('DimX', 'i4'),
-                ('DimY', 'i4'),
-                ('DimZ', 'i4'),
-                ('NameOfVTCFile', 'S1'),
-                ('NameOfProtocolFile', 'S1'),
-                ('NameOfVOIRFile', 'S1'),
-                ('map1', [
-                    ('TypeOfMap', 'i4'),
-                    ('MapThreshold', 'i4'),
-                    ('UpperThreshold', 'i4'),
-                    ('MapName', 'S1'),
-                    ('PosMin', [
-                        ('R', 'b'),
-                        ('G', 'b'),
-                        ('B', 'b')
-                    ]),
-                    ('PosMax', [
-                        ('R', 'b'),
-                        ('G', 'b'),
-                        ('B', 'b')
-                    ]),
-                    ('NegMin', [
-                        ('R', 'b'),
-                        ('G', 'b'),
-                        ('B', 'b')
-                    ]),
-                    ('NegMax', [
-                        ('R', 'b'),
-                        ('G', 'b'),
-                        ('B', 'b')
-                    ]),
-                    ('UseVMPColor', 'b'),
-                    ('LUTFileName', 'S10'),
-                    ('TransparentColorFactor', 'f4'),
-                    ('NrOfLags', 'i4', (0,)),
-                    ('DisplayMinLag', 'i4', (0,)),
-                    ('DisplayMaxLag', 'i4', (0,)),
-                    ('ShowCorrelationOrLag', 'i4', (0,)),
-                    ('ClusterSizeThreshold', 'i4'),
-                    ('EnableClusterSizeThreshold', 'b'),
-                    ('ShowValuesAboveUpperThreshold', 'i4'),
-                    ('DF1', 'i4'),
-                    ('DF2', 'i4'),
-                    ('ShowPosNegValues', 'b'),
-                    ('NrOfUsedVoxels', 'i4'),
-                    ('SizeOfFDRTable', 'i4'),
-                    ('FDRTableInfo', [
-                        ('q', 'f4'),
-                        ('critStandard', 'f4'),
-                        ('critConservative', 'f4')
-                    ], (0,)),
-                    ('UseFDRTableIndex', 'i4'),
-                    ('timepoint', 'f4', (0,))
-                ])
-            ]
+        newTemplate = _make_vmp_header_dtd('S1','S1','S1')
+        newTemplate.append(_make_vmp_submap_header_dtd(0,'S1','S10',0,0))
 
-        dt = np.dtype(vtc_header_dtd)
+        dt = np.dtype(newTemplate)
         hdr = np.zeros((), dtype=dt)
 
         hdr['MagicNumber'] = -1582119980

@@ -322,3 +322,12 @@ def test_guessed_image_type():
     assert_equal(nils.guessed_image_type(
         pjoin(DATA_PATH, 'analyze.hdr')),
         Spm2AnalyzeImage)
+    assert_equal(nils.guessed_image_type(
+        pjoin(DATA_PATH, 'test.vtc')),
+        VtcImage)
+    assert_equal(nils.guessed_image_type(
+        pjoin(DATA_PATH, 'test.msk')),
+        MskImage)
+    assert_equal(nils.guessed_image_type(
+        pjoin(DATA_PATH, 'test.vmp')),
+        VmpImage)
