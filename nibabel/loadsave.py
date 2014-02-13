@@ -57,7 +57,7 @@ def guessed_image_type(filename):
     except KeyError:
         raise ImageFileError('Cannot work out file type of "%s"' %
                              filename)
-    if ext in ('.mgh', '.mgz'):
+    if ext in ('.mgh', '.mgz','.vtc','.msk','.vmp'):
         klass = class_map[img_type]['class']
     elif ext == '.mnc':
         # Look for HDF5 signature for MINC2

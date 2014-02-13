@@ -62,15 +62,15 @@ class_map = {
            'rw':True},
     'vtc':{'class': VtcImage,
            'ext': '.vtc',
-           'has_affine': False,
+           'has_affine': True,
            'rw':True},
     'msk':{'class': MskImage,
            'ext': '.msk',
-           'has_affine': False,
+           'has_affine': True,
            'rw':True},
     'vmp':{'class': VmpImage,
            'ext': '.vmp',
-           'has_affine': False,
+           'has_affine': True,
            'rw':True}}
 
 
