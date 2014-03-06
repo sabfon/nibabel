@@ -74,10 +74,10 @@ class BvFileHeader(LabeledWrapStruct):
 
         if binaryblock is None:
             self._structarr = self.__class__.default_structarr()
-            self.template_dtype = self.update_template_dtype(binaryblock)
+            self.update_template_dtype(binaryblock)
             return
 
-        self.template_dtype = self.update_template_dtype(binaryblock)
+        self.update_template_dtype(binaryblock)
 
         wstr = np.ndarray(shape=(),
                          dtype=self.template_dtype,

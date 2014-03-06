@@ -85,7 +85,7 @@ class MskHeader(BvFileHeader):
         self.set_data_offset(dt.itemsize)
         self.template_dtype = dt
 
-        return dt
+        return self.template
 
     @classmethod
     def default_structarr(klass):
