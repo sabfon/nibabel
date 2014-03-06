@@ -52,13 +52,27 @@ def _make_vmp_header_dtd(vtclt,prtlt,voilt):
 
 def _make_vmp_submap_header_dtd(submap,maplt,lutlt,mStore,fdrl):
     ''' Helper for creating a VMP submap header dtype with given parameters
+
+    Parameters
+    ----------
+    submap: int
+        number of the current submap (zero-based)
+    maplt: string (dtype)
+        length of the MapName string (e.g. 'S12')
+    lutlt: string (dtype)
+        length of the LUT name string (e.g. 'S10')
+    mStore: int
+        1: if TypeOfMap == 3
+        0: if TypeOfMap != 3
+    fdrl: int
+        size of FDR table
     '''
     vmp_submap_header_dtd = \
         (
             'map' + str(submap+1),[
                 ('TypeOfMap', 'i4'),
-                ('MapThreshold', 'i4'),
-                ('UpperThreshold', 'i4'),
+                ('MapThreshold', 'f4'),
+                ('UpperThreshold', 'f4'),
                 ('MapName', maplt),
                 ('PosMin', [
                     ('R', 'b'),
@@ -105,6 +119,39 @@ def _make_vmp_submap_header_dtd(submap,maplt,lutlt,mStore,fdrl):
         )
     return vmp_submap_header_dtd
 
+def _fill_default_vmp_submap_header(hdr, submap):
+    ''' Helper for filling a default submap for a VMP header
+    '''
+    hdr['map' + str(submap+1)]['TypeOfMap'] = 1
+    hdr['map' + str(submap+1)]['MapThreshold'] = 2.0
+    hdr['map' + str(submap+1)]['UpperThreshold'] = 10.0
+    hdr['map' + str(submap+1)]['MapName'] = ''
+    hdr['map' + str(submap+1)]['PosMin']['R'] = 255
+    hdr['map' + str(submap+1)]['PosMin']['G'] = 0
+    hdr['map' + str(submap+1)]['PosMin']['B'] = 0
+    hdr['map' + str(submap+1)]['PosMax']['R'] = 255
+    hdr['map' + str(submap+1)]['PosMax']['G'] = 255
+    hdr['map' + str(submap+1)]['PosMax']['B'] = 0
+    hdr['map' + str(submap+1)]['NegMin']['R'] = 255
+    hdr['map' + str(submap+1)]['NegMin']['G'] = 0
+    hdr['map' + str(submap+1)]['NegMin']['B'] = 255
+    hdr['map' + str(submap+1)]['NegMax']['R'] = 0
+    hdr['map' + str(submap+1)]['NegMax']['G'] = 0
+    hdr['map' + str(submap+1)]['NegMax']['B'] = 255
+    hdr['map' + str(submap+1)]['UseVMPColor'] = 0
+    hdr['map' + str(submap+1)]['LUTFileName'] = '<default>'
+    hdr['map' + str(submap+1)]['TransparentColorFactor'] = 1.0
+    hdr['map' + str(submap+1)]['ClusterSizeThreshold'] = 50
+    hdr['map' + str(submap+1)]['EnableClusterSizeThreshold'] = 0
+    hdr['map' + str(submap+1)]['ShowValuesAboveUpperThreshold'] = 1
+    hdr['map' + str(submap+1)]['DF1'] = 0
+    hdr['map' + str(submap+1)]['DF2'] = 0
+    hdr['map' + str(submap+1)]['ShowPosNegValues'] = 3
+    hdr['map' + str(submap+1)]['NrOfUsedVoxels'] = 0
+    hdr['map' + str(submap+1)]['SizeOfFDRTable'] = 0
+    hdr['map' + str(submap+1)]['UseFDRTableIndex'] = 0
+    return hdr
+
 class VmpHeader(BvFileHeader):
     ''' Class for BrainVoyager NR-VMP header
     '''
@@ -130,7 +177,7 @@ class VmpHeader(BvFileHeader):
 
         Parameters
         ----------
-        shape : sequence
+        shape: sequence
            sequence of integers specifying data array shape
         zyx: 3x2 nested list [[1,2],[3,4],[5,6]]
            array storing borders of data
@@ -140,6 +187,8 @@ class VmpHeader(BvFileHeader):
         '''
         if (shape is None) and (zyx is None) and (n is None):
             raise BvError('Shape, zyx, or n needs to be specified!')
+
+        nc = self._structarr['NrOfSubMaps']
         if shape is not None:
             # Use zyx and t parameters instead of shape. Dimensions will start from default coordinates.
             if len(shape) != 4:
@@ -147,6 +196,10 @@ class VmpHeader(BvFileHeader):
             self._structarr['XEnd'] = 57 + (shape[3] * self._structarr['Resolution'])
             self._structarr['YEnd'] = 52 + (shape[2] * self._structarr['Resolution'])
             self._structarr['ZEnd'] = 59 + (shape[1] * self._structarr['Resolution'])
+            if shape[0] > nc:
+                self._add_submap(shape[0] - nc)
+            elif shape[0] < nc:
+                self._rem_submap(nc - shape[0])
             self._structarr['NrOfSubMaps'] = shape[0]
             return
         self._structarr['XStart'] = zyx[2][0]
@@ -156,6 +209,10 @@ class VmpHeader(BvFileHeader):
         self._structarr['ZStart'] = zyx[0][0]
         self._structarr['ZEnd'] = zyx[0][1]
         if n is not None:
+            if n > nc:
+                self._add_submap(n - nc)
+            elif n < nc:
+                self._rem_submap(nc - n)
             self._structarr['NrOfSubMaps'] = n
 
     def get_framing_cube(self):
@@ -174,6 +231,22 @@ class VmpHeader(BvFileHeader):
         self._framing_cube = fc
 
     def update_template_dtype(self,binaryblock=None, item=None, value=None):
+        ''' (Re-)Parse the binaryblock to update the header dtype
+
+        Parameters
+        ----------
+        binaryblock: structarr.tostring() instance
+            binaryblock of the header to parse
+        item: string
+            string field in header to change
+        value: string
+            length is used to set new dtype for field
+
+        Returns
+        -------
+        newTemplate: list
+            new list of dtype fields for header
+        '''
         if binaryblock is None:
             binaryblock = self.binaryblock
 
@@ -274,6 +347,86 @@ class VmpHeader(BvFileHeader):
         self.template_dtype = dt
 
         return newTemplate
+
+    def _add_submap(self,n=1):
+        ''' Add a submap to the VMP header
+
+        Parameters
+        ----------
+        n: number of submaps to add
+        '''
+        # gather some data about the old header
+        if n == 0:
+            return
+        if n < 0:
+            raise BvError('Please use _rem_submap for removing submaps!')
+        oldkeys = self.keys()
+        newTemplate = self.update_template_dtype()
+        mapn = self._structarr['NrOfSubMaps']
+        lastmapind = [ind for ind,field in enumerate(newTemplate) if 'map' in field[0]][-1]
+        if lastmapind is None:
+            raise BvError('No Maps defined in VMP header!')
+
+        # insert the new submaps into the header dtype template
+        for newmap in range(n):
+            newTemplate.insert(lastmapind+1+newmap,_make_vmp_submap_header_dtd(mapn+newmap,'S1','S10',0,0))
+        dt = np.dtype(newTemplate)
+        self.set_data_offset(dt.itemsize)
+        self.template_dtype = dt
+        hdr = np.zeros((), dtype=dt)
+
+        # copy the current values into the new header
+        for key in oldkeys:
+            hdr[key] = self._structarr[key]
+
+        # fill the new submaps with default data
+        for newmap in range(n):
+            hdr = _fill_default_vmp_submap_header(hdr,mapn+newmap)
+
+        # save the new number of submaps to header
+        hdr['NrOfSubMaps'] = mapn+n
+        self._structarr = hdr
+        self.update_template_dtype()
+
+    def _rem_submap(self,n=1):
+        ''' Remove a submap to the VMP header
+
+        Parameters
+        ----------
+        n: number of submaps to remove
+        '''
+        if n == 0:
+            return
+        if n < 0:
+            raise BvError('Please use _add_submap for adding submaps!')
+        if n >= self._structarr['NrOfSubMaps']:
+            raise BvError('NR-VMP files need at least one sub-map!')
+        # gather some data about the old header
+        newTemplate = self.update_template_dtype()
+        mapn = self._structarr['NrOfSubMaps']
+        mapind = [ind for ind,field in enumerate(newTemplate) if 'map' in field[0]][-n]
+        if mapind is None:
+            raise BvError('No Maps defined in VMP header!')
+
+        # remove submaps from the header dtype template
+        if n > 1:
+            for map in range(n):
+                newTemplate.pop(mapind[map])
+        else:
+            newTemplate.pop(mapind)
+        dt = np.dtype(newTemplate)
+        self.set_data_offset(dt.itemsize)
+        self.template_dtype = dt
+        hdr = np.zeros((), dtype=dt)
+
+        # copy the current values into the new header
+        for key in [i for i in hdr.dtype.fields]:
+            hdr[key] = self._structarr[key]
+
+        # save the new number of submaps to header
+        hdr['NrOfSubMaps'] = mapn-n
+        self._structarr = hdr
+        self.update_template_dtype()
 
     @classmethod
     def default_structarr(klass, endianness=None):
