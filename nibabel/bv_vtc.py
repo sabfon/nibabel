@@ -151,7 +151,7 @@ class VtcHeader(BvFileHeader):
         self.set_data_offset(dt.itemsize)
         self.template_dtype = dt
 
-        return dt
+        return newTemplate
 
     @classmethod
     def default_structarr(klass, endianness=None):
