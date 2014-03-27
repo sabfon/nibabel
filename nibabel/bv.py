@@ -114,7 +114,7 @@ class BvFileHeader(LabeledWrapStruct):
         ''' Set values in structured data
         check for string values and change the template accordingly
         '''
-        if self.template_dtype[item].type == np.string_:
+        if type(value) == np.string_:
             self.update_template_dtype(item=item, value=value)
             wstr = np.ndarray(shape=(),
                              dtype=self.template_dtype,
