@@ -361,6 +361,7 @@ class VmpHeader(BvFileHeader):
         if n < 0:
             raise BvError('Please use _rem_submap for removing submaps!')
         oldkeys = self.keys()
+        oldhdr = self._structarr
         newTemplate = self.update_template_dtype()
         mapn = self._structarr['NrOfSubMaps']
         lastmapind = [ind for ind,field in enumerate(newTemplate) if 'map' in field[0]][-1]
@@ -377,7 +378,7 @@ class VmpHeader(BvFileHeader):
 
         # copy the current values into the new header
         for key in oldkeys:
-            hdr[key] = self._structarr[key]
+            hdr[key] = oldhdr[key]
 
         # fill the new submaps with default data
         for newmap in range(n):
@@ -402,6 +403,7 @@ class VmpHeader(BvFileHeader):
         if n >= self._structarr['NrOfSubMaps']:
             raise BvError('NR-VMP files need at least one sub-map!')
         # gather some data about the old header
+        oldhdr = self._structarr
         newTemplate = self.update_template_dtype()
         mapn = self._structarr['NrOfSubMaps']
         mapind = [ind for ind,field in enumerate(newTemplate) if 'map' in field[0]][-n]
@@ -421,7 +423,7 @@ class VmpHeader(BvFileHeader):
 
         # copy the current values into the new header
         for key in [i for i in hdr.dtype.fields]:
-            hdr[key] = self._structarr[key]
+            hdr[key] = oldhdr[key]
 
         # save the new number of submaps to header
         hdr['NrOfSubMaps'] = mapn-n
