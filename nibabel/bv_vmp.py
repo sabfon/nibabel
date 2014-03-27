@@ -123,8 +123,8 @@ def _fill_default_vmp_submap_header(hdr, submap):
     ''' Helper for filling a default submap for a VMP header
     '''
     hdr['map' + str(submap+1)]['TypeOfMap'] = 1
-    hdr['map' + str(submap+1)]['MapThreshold'] = 2.0
-    hdr['map' + str(submap+1)]['UpperThreshold'] = 10.0
+    hdr['map' + str(submap+1)]['MapThreshold'] = 1.6500
+    hdr['map' + str(submap+1)]['UpperThreshold'] = 8
     hdr['map' + str(submap+1)]['MapName'] = ''
     hdr['map' + str(submap+1)]['PosMin']['R'] = 255
     hdr['map' + str(submap+1)]['PosMin']['G'] = 0
@@ -144,10 +144,10 @@ def _fill_default_vmp_submap_header(hdr, submap):
     hdr['map' + str(submap+1)]['ClusterSizeThreshold'] = 50
     hdr['map' + str(submap+1)]['EnableClusterSizeThreshold'] = 0
     hdr['map' + str(submap+1)]['ShowValuesAboveUpperThreshold'] = 1
-    hdr['map' + str(submap+1)]['DF1'] = 0
+    hdr['map' + str(submap+1)]['DF1'] = 249
     hdr['map' + str(submap+1)]['DF2'] = 0
     hdr['map' + str(submap+1)]['ShowPosNegValues'] = 3
-    hdr['map' + str(submap+1)]['NrOfUsedVoxels'] = 0
+    hdr['map' + str(submap+1)]['NrOfUsedVoxels'] = 45555
     hdr['map' + str(submap+1)]['SizeOfFDRTable'] = 0
     hdr['map' + str(submap+1)]['UseFDRTableIndex'] = 0
     return hdr
@@ -464,8 +464,8 @@ class VmpHeader(BvFileHeader):
         hdr['NameOfProtocolFile'] = '' 
         hdr['NameOfVOIRFile'] = ''
         hdr['map1']['TypeOfMap'] = 1
-        hdr['map1']['MapThreshold'] = 2.0
-        hdr['map1']['UpperThreshold'] = 10.0
+        hdr['map1']['MapThreshold'] = 1.6500
+        hdr['map1']['UpperThreshold'] = 8
         hdr['map1']['MapName'] = ''
         hdr['map1']['PosMin']['R'] = 255
         hdr['map1']['PosMin']['G'] = 0
@@ -485,10 +485,10 @@ class VmpHeader(BvFileHeader):
         hdr['map1']['ClusterSizeThreshold'] = 50
         hdr['map1']['EnableClusterSizeThreshold'] = 0
         hdr['map1']['ShowValuesAboveUpperThreshold'] = 1
-        hdr['map1']['DF1'] = 0
+        hdr['map1']['DF1'] = 249
         hdr['map1']['DF2'] = 0
         hdr['map1']['ShowPosNegValues'] = 3
-        hdr['map1']['NrOfUsedVoxels'] = 0
+        hdr['map1']['NrOfUsedVoxels'] = 45555
         hdr['map1']['SizeOfFDRTable'] = 0
         hdr['map1']['UseFDRTableIndex'] = 0
 
