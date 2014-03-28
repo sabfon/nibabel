@@ -115,7 +115,7 @@ class BvFileHeader(LabeledWrapStruct):
         ''' Set values in structured data
         check for string values and change the template accordingly
         '''
-        if type(value) == str:
+        if isinstance(value, basestring):
             self.update_template_dtype(item=item, value=value)
             wstr = np.ndarray(shape=(),
                              dtype=self.template_dtype,
@@ -127,11 +127,6 @@ class BvFileHeader(LabeledWrapStruct):
                 self._structarr[item[0]][item[1]] = value
                 return
         self._structarr[item] = value
-
-    def setString(self, item, value):
-        ''' Set string values in the header
-        '''
-
 
     @classmethod
     def default_structarr(klass, endianness=None):
