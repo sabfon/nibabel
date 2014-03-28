@@ -15,6 +15,7 @@ Author: Thomas Emmerling
 '''
 
 import numpy as np
+import sys
 
 from .volumeutils import allopen, array_to_file, array_from_file, Recoder
 from .spatialimages import HeaderDataError, HeaderTypeError, SpatialImage
@@ -114,7 +115,7 @@ class BvFileHeader(LabeledWrapStruct):
         ''' Set values in structured data
         check for string values and change the template accordingly
         '''
-        if type(value) == np.string_:
+        if type(value) == str:
             self.update_template_dtype(item=item, value=value)
             wstr = np.ndarray(shape=(),
                              dtype=self.template_dtype,
@@ -122,7 +123,15 @@ class BvFileHeader(LabeledWrapStruct):
             for key in self.keys():
                 wstr[key] = self._structarr[key]
             self._structarr = wstr.copy()
+            if type(item) == tuple:
+                self._structarr[item[0]][item[1]] = value
+                return
         self._structarr[item] = value
+
+    def setString(self, item, value):
+        ''' Set string values in the header
+        '''
+
 
     @classmethod
     def default_structarr(klass, endianness=None):

@@ -125,7 +125,7 @@ def _fill_default_vmp_submap_header(hdr, submap):
     hdr['map' + str(submap+1)]['TypeOfMap'] = 1
     hdr['map' + str(submap+1)]['MapThreshold'] = 1.6500
     hdr['map' + str(submap+1)]['UpperThreshold'] = 8
-    hdr['map' + str(submap+1)]['MapName'] = ''
+    hdr['map' + str(submap+1)]['MapName'] = 'New Map'
     hdr['map' + str(submap+1)]['PosMin']['R'] = 255
     hdr['map' + str(submap+1)]['PosMin']['G'] = 0
     hdr['map' + str(submap+1)]['PosMin']['B'] = 0
@@ -339,8 +339,18 @@ class VmpHeader(BvFileHeader):
         if nComponentParams != 0:
             newTemplate.append(componentparams)
 
+        # maybe a dtype field should be changed
         if item is not None:
-            newTemplate = [(x[0], x[1]) if x[0] != item else (item, 'S'+str(len(value)+1)) for x in newTemplate]
+            # is it in the first level?
+            if type(item) == str:
+                field1 = [x for x in enumerate(newTemplate) if (x[1][0] == item)]
+                newTemplate[field1[0][0]] = (field1[0][1][0], 'S'+str(len(value)+1))
+
+            # it is on second level
+            else:
+                field1 = [x for x in enumerate(newTemplate) if (x[1][0] == item[0])]
+                field2 = [x for x in enumerate(newTemplate[field1[0][0]][1]) if (x[1][0] == item[1])]
+                newTemplate[field1[0][0]][1][field2[0][0]] = (field2[0][1][0], 'S'+str(len(value)+1))
         
         dt = np.dtype(newTemplate)
         self.set_data_offset(dt.itemsize)
@@ -370,7 +380,7 @@ class VmpHeader(BvFileHeader):
 
         # insert the new submaps into the header dtype template
         for newmap in range(n):
-            newTemplate.insert(lastmapind+1+newmap,_make_vmp_submap_header_dtd(mapn+newmap,'S1','S10',0,0))
+            newTemplate.insert(lastmapind+1+newmap,_make_vmp_submap_header_dtd(mapn+newmap,'S8','S10',0,0))
         dt = np.dtype(newTemplate)
         self.set_data_offset(dt.itemsize)
         self.template_dtype = dt
@@ -437,7 +447,7 @@ class VmpHeader(BvFileHeader):
         '''
 
         newTemplate = _make_vmp_header_dtd('S1','S1','S1')
-        newTemplate.append(_make_vmp_submap_header_dtd(0,'S1','S10',0,0))
+        newTemplate.append(_make_vmp_submap_header_dtd(0,'S8','S10',0,0))
 
         dt = np.dtype(newTemplate)
         hdr = np.zeros((), dtype=dt)
@@ -465,34 +475,8 @@ class VmpHeader(BvFileHeader):
         hdr['NameOfVTCFile'] = ''
         hdr['NameOfProtocolFile'] = '' 
         hdr['NameOfVOIRFile'] = ''
-        hdr['map1']['TypeOfMap'] = 1
-        hdr['map1']['MapThreshold'] = 1.6500
-        hdr['map1']['UpperThreshold'] = 8
-        hdr['map1']['MapName'] = ''
-        hdr['map1']['PosMin']['R'] = 255
-        hdr['map1']['PosMin']['G'] = 0
-        hdr['map1']['PosMin']['B'] = 0
-        hdr['map1']['PosMax']['R'] = 255
-        hdr['map1']['PosMax']['G'] = 255
-        hdr['map1']['PosMax']['B'] = 0
-        hdr['map1']['NegMin']['R'] = 255
-        hdr['map1']['NegMin']['G'] = 0
-        hdr['map1']['NegMin']['B'] = 255
-        hdr['map1']['NegMax']['R'] = 0
-        hdr['map1']['NegMax']['G'] = 0
-        hdr['map1']['NegMax']['B'] = 255
-        hdr['map1']['UseVMPColor'] = 0
-        hdr['map1']['LUTFileName'] = '<default>'
-        hdr['map1']['TransparentColorFactor'] = 1.0
-        hdr['map1']['ClusterSizeThreshold'] = 50
-        hdr['map1']['EnableClusterSizeThreshold'] = 0
-        hdr['map1']['ShowValuesAboveUpperThreshold'] = 1
-        hdr['map1']['DF1'] = 249
-        hdr['map1']['DF2'] = 0
-        hdr['map1']['ShowPosNegValues'] = 3
-        hdr['map1']['NrOfUsedVoxels'] = 45555
-        hdr['map1']['SizeOfFDRTable'] = 0
-        hdr['map1']['UseFDRTableIndex'] = 0
+
+        hdr = _fill_default_vmp_submap_header(hdr, 1)
 
         return hdr
 
