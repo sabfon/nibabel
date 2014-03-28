@@ -476,7 +476,7 @@ class VmpHeader(BvFileHeader):
         hdr['NameOfProtocolFile'] = '' 
         hdr['NameOfVOIRFile'] = ''
 
-        hdr = _fill_default_vmp_submap_header(hdr, 1)
+        hdr = _fill_default_vmp_submap_header(hdr, 0)
 
         return hdr
 
