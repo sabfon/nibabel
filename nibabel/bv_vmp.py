@@ -75,24 +75,24 @@ def _make_vmp_submap_header_dtd(submap,maplt,lutlt,mStore,fdrl):
                 ('UpperThreshold', 'f4'),
                 ('MapName', maplt),
                 ('PosMin', [
-                    ('R', 'b'),
-                    ('G', 'b'),
-                    ('B', 'b')
+                    ('R', 'u1'),
+                    ('G', 'u1'),
+                    ('B', 'u1')
                 ]),
                 ('PosMax', [
-                    ('R', 'b'),
-                    ('G', 'b'),
-                    ('B', 'b')
+                    ('R', 'u1'),
+                    ('G', 'u1'),
+                    ('B', 'u1')
                 ]),
                 ('NegMin', [
-                    ('R', 'b'),
-                    ('G', 'b'),
-                    ('B', 'b')
+                    ('R', 'u1'),
+                    ('G', 'u1'),
+                    ('B', 'u1')
                 ]),
                 ('NegMax', [
-                    ('R', 'b'),
-                    ('G', 'b'),
-                    ('B', 'b')
+                    ('R', 'u1'),
+                    ('G', 'u1'),
+                    ('B', 'u1')
                 ]),
                 ('UseVMPColor', 'b'),
                 ('LUTFileName', lutlt),
