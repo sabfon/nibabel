@@ -1,31 +1,31 @@
 # emacs: -*- mode: python-mode; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
+# ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
 #
 #   See COPYING file distributed along with the NiBabel package for the
 #   copyright and license terms.
 #
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
-''' Reading / writing functions for Brainvoyager (BV) file formats
+# ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
+"""Reading / writing functions for Brainvoyager (BV) file formats.
 
-please look at the support site of BrainInnovation for further informations about the file formats:
-http://support.brainvoyager.com/
+please look at the support site of BrainInnovation for further informations
+about the file formats: http://support.brainvoyager.com/
+
+This file implements basic functionality for BV file formats. Look into bv_*.py
+files for implementations of the different file formats.
 
 Author: Thomas Emmerling
-'''
+"""
 
 import numpy as np
-import sys
-
-from .volumeutils import allopen, array_to_file, array_from_file, Recoder
-from .spatialimages import HeaderDataError, HeaderTypeError, SpatialImage
-from .fileholders import FileHolder,  copy_file_map
+from .volumeutils import array_to_file, array_from_file
+from .spatialimages import Header, HeaderDataError, SpatialImage
+from .fileholders import copy_file_map
 from .arrayproxy import CArrayProxy
-from .volumeutils import shape_zoom_affine, seek_tell, make_dt_codes
-from .wrapstruct import LabeledWrapStruct
-from .batteryrunners import Report, BatteryRunner
+from .volumeutils import make_dt_codes
+from struct import pack, unpack, calcsize
 
-_dtdefs = ( # code, conversion function, equivalent dtype, aliases
+_dtdefs = (  # code, conversion function, equivalent dtype, aliases
     (1, 'int16', np.uint16),
     (2, 'float32', np.float32),
     (3, 'uint8', np.uint8))
@@ -33,32 +33,183 @@ _dtdefs = ( # code, conversion function, equivalent dtype, aliases
 # Make full code alias bank, including dtype column
 data_type_codes = make_dt_codes(_dtdefs)
 
+
+def readCString(f, nStrings=1, bufsize=1000, startPos=None, strip=True,
+                rewind=False):
+    """Read a zero-terminated string from a file object.
+
+    Read and return a zero-terminated string from a file object.
+
+    Parameters
+    ----------
+    f : fileobj
+       File object to use
+    nStrings: int, optional
+       Number of strings to search (and return). Default is 1.
+    bufsize: int, optional
+       Define the buffer size that should be searched for the string.
+       Default is 1000 bytes.
+    startPos: int, optional
+       Define the start file position from which to search. If None then start
+       where the file object currently points to. Default is None.
+    strip : bool, optional
+       Whether to strip the trailing zero from the returned string.
+       Default is True.
+    rewind: bool, optional
+       Whether the fileobj f should be returned to the initial position after
+       reading. Default is False.
+    Returns
+    -------
+    [str] : list of string(s)
+    """
+    currentPos = f.tell()
+    if strip:
+        suffix = ''
+    else:
+        suffix = '\x00'
+    if startPos is not None:
+        f.seek(startPos)
+    data = f.read(bufsize)
+    lines = data.split('\x00')
+    if rewind:
+        f.seek(currentPos)
+    else:
+        offset = 0
+        for s in range(nStrings):
+            offset += len(lines[s])+1
+        f.seek(currentPos+offset)
+    for s in range(nStrings):
+        yield lines[s] + suffix
+
+
+def parse_BV_header(hdrDict, fileobj):
+    """Parse the header of a BV file format.
+
+    This function can be (and is) called recursively to iterate through nested
+    fields (e.g. the prts field of the VTC header).
+
+    Parameters
+    ----------
+    hdrDict: OrderedDict
+       Pre-populated hdrDict that contains the fields to expect for the
+       respective BV file format.
+    fileobj : fileobj
+       File object to use. Make sure that the current position is at the
+       beginning of the header (e.g. at 0).
+    """
+    for key in hdrDict.keys():
+        # handle zero-terminated strings
+        if hdrDict[key]['dt'] == '<s':
+            hdrDict[key]['value'] = readCString(fileobj).next()
+        # handle array fields
+        elif hdrDict[key]['dt'] == 'multi':
+            # empty the list in the value field
+            hdrDict[key]['value'] = []
+            # check the length of the array to expect
+            for i in range(hdrDict[hdrDict[key]['nField']]['value']):
+                # recusively iterate through the fields of all items
+                # in the array
+                hdrDict[key]['value'].append(
+                    parse_BV_header(hdrDict[key]['default'][0], fileobj))
+        else:
+            hdrDict[key]['value'] = \
+                unpack(hdrDict[key]['dt'],
+                       fileobj.read(calcsize(hdrDict[key]['dt'])))[0]
+    return hdrDict
+
+
+def pack_BV_header(hdrDict):
+    """Pack the header of a BV file format for (binary) writing to a file.
+
+    This function can be (and is) called recursively to iterate through nested
+    fields (e.g. the prts field of the VTC header).
+
+    Parameters
+    ----------
+    hdrDict: OrderedDict
+       hdrDict that contains the fields and values to for the respective
+       BV file format.
+    """
+    binaryblock = ''
+    for key in hdrDict.keys():
+        # handle zero-terminated strings
+        if hdrDict[key]['dt'] == '<s':
+            binaryblock += pack('<' + str(len(hdrDict[key]['value'])+1) + 's',
+                                hdrDict[key]['value'])
+        # handle array fields
+        elif hdrDict[key]['dt'] == 'multi':
+            # check the length of the array to expect
+            for i in range(hdrDict[hdrDict[key]['nField']]['value']):
+                # recusively iterate through the fields of all items
+                # in the array
+                binaryblock += pack_BV_header(hdrDict[key]['value'][i])
+        else:
+            binaryblock += pack(hdrDict[key]['dt'], hdrDict[key]['value'])
+    return binaryblock
+
+
+def calc_BV_header_size(hdrDict):
+    """Calculate the binary size of a hdrDict for a BV file format header.
+
+    This function can be (and is) called recursively to iterate through nested
+    fields (e.g. the prts field of the VTC header).
+
+    Parameters
+    ----------
+    hdrDict: OrderedDict
+       hdrDict that contains the fields and values to for the respective
+       BV file format.
+    """
+    hdrSize = 0
+    for key in hdrDict.keys():
+        # handle zero-terminated strings
+        if hdrDict[key]['dt'] == '<s':
+            hdrSize += calcsize('<' + str(len(hdrDict[key]['value'])+1) + 's')
+        # handle array fields
+        elif hdrDict[key]['dt'] == 'multi':
+            # check the length of the array to expect
+            for i in range(hdrDict[hdrDict[key]['nField']]['value']):
+                # recusively iterate through the fields of all items
+                # in the array
+                hdrSize += calc_BV_header_size(hdrDict[key]['value'][i])
+        else:
+            hdrSize += calcsize(hdrDict[key]['dt'])
+    return hdrSize
+
+
 class BvError(Exception):
+
     """Exception for BV format related problems.
 
     To be raised whenever there is a problem with a BV fileformat.
     """
+
     pass
 
-class BvFileHeader(LabeledWrapStruct):
-    """Class to hold information from a BV file header.
-    """
+
+class BvFileHeader(Header):
+
+    """Class to hold information from a BV file header."""
 
     # Copies of module-level definitions
     _data_type_codes = data_type_codes
     _field_recoders = {'datatype': data_type_codes}
 
     # format defaults
-    default_x_flip = True # BV files are radiological (left-is-right) by default (VTC files have a flag for that, however)
-    endianness = '<' # BV files are always little-endian
-    allowed_dtypes = [1,2,3]
+    # BV files are radiological (left-is-right) by default
+    # (VTC files have a flag for that, however)
+    default_x_flip = True
+    default_endianness = '<'  # BV files are always little-endian
+    allowed_dtypes = [1, 2, 3]
     default_dtype = 2
+    data_layout = 'C'
 
     def __init__(self,
-                 binaryblock=None,
-                 endianness=endianness,
-                 check=True):
-        ''' Initialize header from binary data block
+                 hdrDict=None,
+                 endianness=default_endianness,
+                 check=True,
+                 offset=None):
+        """Initialize header from binary data block.
 
         Parameters
         ----------
@@ -71,30 +222,26 @@ class BvFileHeader(LabeledWrapStruct):
         check : bool, optional
             Whether to check content of header in initialization.
             Default is True.
-        '''
+        """
+        if endianness != self.default_endianness:
+            raise BvError('BV files are always little-endian')
+        self.endianness = self.default_endianness
+        if hdrDict is None:
+            self._hdrDict = self.__class__._init_hdrDict()
+        else:
+            self._hdrDict = hdrDict.copy()
+        if offset is None:
+            self.set_data_offset(calc_BV_header_size(self._hdrDict))
 
-        if binaryblock is None:
-            self._structarr = self.__class__.default_structarr()
-            self.update_template_dtype(binaryblock)
-            return
-
-        self.update_template_dtype(binaryblock)
-
-        wstr = np.ndarray(shape=(),
-                         dtype=self.template_dtype,
-                         buffer=binaryblock[:self.template_dtype.itemsize])
-        self._structarr = wstr.copy()
         self._framing_cube = self._guess_framing_cube()
         if check:
             self.check_fix()
         return
 
-    def update_template_dtype(self, binaryblock=None, item=None, value=None):
-        raise NotImplementedError
-
     @classmethod
-    def from_fileobj(klass, fileobj, endianness=None, check=True):
-        ''' Return read structure with given or guessed endiancode
+    def from_fileobj(klass, fileobj, endianness=default_endianness,
+                     check=True):
+        """Return read structure with given or guessed endiancode.
 
         Parameters
         ----------
@@ -107,34 +254,20 @@ class BvFileHeader(LabeledWrapStruct):
         -------
         header : BvFileHeader object
            BvFileHeader object initialized from data in fileobj
-        '''
-        raw_str = fileobj.read(10000)
-        return klass(raw_str, endianness, check)
+        """
+        hdrDict = klass._init_hdrDict()
 
-    def __setitem__(self, item, value):
-        ''' Set values in structured data
-        check for string values and change the template accordingly
-        '''
-        if isinstance(value, basestring):
-            self.update_template_dtype(item=item, value=value)
-            wstr = np.ndarray(shape=(),
-                             dtype=self.template_dtype,
-                             buffer=np.zeros(self.template_dtype.itemsize))
-            for key in self.keys():
-                wstr[key] = self._structarr[key]
-            self._structarr = wstr.copy()
-            if type(item) == tuple:
-                self._structarr[item[0]][item[1]] = value
-                return
-        self._structarr[item] = value
+        hdrDict = parse_BV_header(hdrDict, fileobj)
+        offset = fileobj.tell()
+        return klass(hdrDict, endianness, check, offset)
 
     @classmethod
-    def default_structarr(klass, endianness=None):
+    def _init_hdrDict(klass):
         raise NotImplementedError
 
     @classmethod
     def from_header(klass, header=None, check=False):
-        ''' Class method to create header from another header
+        """Class method to create header from another header.
 
         Parameters
         ----------
@@ -148,7 +281,7 @@ class BvFileHeader(LabeledWrapStruct):
         -------
         hdr : header instance
            fresh header instance of our own class
-        '''
+        """
         # own type, return copy
         if type(header) == klass:
             obj = header.copy()
@@ -159,7 +292,7 @@ class BvFileHeader(LabeledWrapStruct):
         obj = klass(check=check)
         if header is None:
             return obj
-        try: # check if there is a specific conversion routine
+        try:  # check if there is a specific conversion routine
             mapping = header.as_bv_map()
         except AttributeError:
             # most basic conversion
@@ -192,13 +325,20 @@ class BvFileHeader(LabeledWrapStruct):
             obj.check_fix()
         return obj
 
+    def copy(self):
+        """Copy object to independent representation.
+
+        The copy should not be affected by any changes to the original
+        object.
+        """
+        return self.__class__(self._hdrDict)
+
     def _set_format_specifics(self):
-        ''' Utility routine to set format specific header stuff
-        '''
+        """Utility routine to set format specific header stuff."""
         pass
 
     def data_from_fileobj(self, fileobj):
-        ''' Read data array from `fileobj`
+        """Read data array from `fileobj`.
 
         Parameters
         ----------
@@ -209,27 +349,27 @@ class BvFileHeader(LabeledWrapStruct):
         -------
         arr : ndarray
            data array
-        '''
+        """
         dtype = self.get_data_dtype()
         shape = self.get_data_shape()
         offset = self.get_data_offset()
-        return array_from_file(shape, dtype, fileobj, offset, order='C')
+        return array_from_file(shape, dtype, fileobj, offset,
+                               order=self.data_layout)
 
     def get_data_dtype(self):
-        ''' Get numpy dtype for data
+        """Get numpy dtype for data.
 
         For examples see ``set_data_dtype``
-        '''
-        if 'datatype' in self.keys():
-            code = int(self._structarr['datatype'])
+        """
+        if 'datatype' in self._hdrDict.keys():
+            code = int(self._hdrDict['datatype']['value'])
         else:
             code = self.default_dtype
         dtype = self._data_type_codes.dtype[code]
         return dtype.newbyteorder(self.endianness)
 
     def set_data_dtype(self, datatype):
-        ''' Set numpy dtype for data from code or dtype or type
-        '''
+        """Set numpy dtype for data from code or dtype or type."""
         try:
             code = self._data_type_codes[datatype]
         except KeyError:
@@ -239,38 +379,34 @@ class BvFileHeader(LabeledWrapStruct):
             raise HeaderDataError(
                 'data dtype "%s" not supported' % datatype)
         dtype = self._data_type_codes.dtype[code]
-        if 'datatype' in self.keys():
-            self._structarr['datatype'] = code
+        if 'datatype' in self._hdrDict.keys():
+            self._hdrDict['datatype']['value'] = code
             return
         if dtype.newbyteorder(self.endianness) != self.get_data_dtype():
             raise HeaderDataError(
                 'File format does not support setting of header!')
 
     def get_xflip(self):
-        ''' Get xflip for data
-        '''
+        """Get xflip for data."""
         return self.default_x_flip
 
     def set_xflip(self, xflip):
-        ''' Set xflip for data
-        '''
-        if xflip == True:
+        """Set xflip for data."""
+        if xflip is True:
             return
         else:
             raise BvError('cannot change Left-right convention!')
 
     def get_data_shape(self):
-        ''' Get shape of data
-        '''
+        """Get shape of data."""
         raise NotImplementedError
 
     def set_data_shape(self, shape):
-        ''' Set shape of data
-        '''
+        """Set shape of data."""
         raise NotImplementedError
 
     def get_base_affine(self):
-        ''' Get affine from basic (shared) header fields
+        """Get affine from basic (shared) header fields.
 
         Note that we get the translations from the center of the
         (guessed) framing cube of the referenced VMR (anatomical) file.
@@ -291,27 +427,31 @@ class BvFileHeader(LabeledWrapStruct):
                [ 0.,  2.,  0., -4.],
                [ 0.,  0.,  1., -3.],
                [ 0.,  0.,  0.,  1.]])
-        '''
+        """
         zooms = self.get_zooms()
         if not self.get_xflip():
-            zooms[0] *= -1 # make the BV internal Z axis neurological (left-is-left); not default in BV files!
-
+            # make the BV internal Z axis neurological (left-is-left);
+            # not default in BV files!
+            zooms[0] *= -1
 
         # compute the rotation
-        rot = np.zeros((3,3))
-        rot[:,0] = [-zooms[0], 0 , 0] # make the flipped BV Z axis the new R axis
-        rot[:,1] = [0, 0, -zooms[2]] # make the flipped BV X axis the new A axis
-        rot[:,2] = [0, -zooms[1], 0] # make the flipped BV Y axis the new S axis
+        rot = np.zeros((3, 3))
+        # make the flipped BV Z axis the new R axis
+        rot[:, 0] = [-zooms[0], 0, 0]
+        # make the flipped BV X axis the new A axis
+        rot[:, 1] = [0, 0, -zooms[2]]
+        # make the flipped BV Y axis the new S axis
+        rot[:, 2] = [0, -zooms[1], 0]
 
         # compute the translation
-        fcc = np.array(self.get_framing_cube())/2 # center of framing cube
-        bbc = np.array(self.get_bbox_center()) # center of bounding box
-        tra = np.dot((bbc-fcc),rot)
+        fcc = np.array(self.get_framing_cube())/2  # center of framing cube
+        bbc = np.array(self.get_bbox_center())  # center of bounding box
+        tra = np.dot((bbc-fcc), rot)
 
         # assemble
         M = np.eye(4, 4)
-        M[0:3,0:3] = rot
-        M[0:3,3] = tra.T
+        M[0:3, 0:3] = rot
+        M[0:3, 3] = tra.T
 
         return M
 
@@ -322,77 +462,120 @@ class BvFileHeader(LabeledWrapStruct):
     get_affine = get_base_affine
 
     def _guess_framing_cube(self):
-        ''' Guess the dimensions of the framing cube that constitutes the coordinate system boundaries for the bounding box
-        For most BV file formats this need to be guessed from XEnd, YEnd, and ZEnd in the header.
-        '''
+        """Guess the dimensions of the framing cube.
+
+        Guess the dimensions of the framing cube that constitutes the
+        coordinate system boundaries for the bounding box.
+
+        For most BV file formats this need to be guessed from
+        XEnd, YEnd, and ZEnd in the header.
+        """
         # then start guessing...
-        hdr = self._structarr
+        hdr = self._hdrDict
 
         # get the ends of the bounding box (highest values in each dimension)
-        x = hdr['XEnd']
-        y = hdr['YEnd']
-        z = hdr['ZEnd']
+        x = hdr['XEnd']['value']
+        y = hdr['YEnd']['value']
+        z = hdr['ZEnd']['value']
 
         # compare with possible framing cubes
         for fc in [256, 384, 512, 768, 1024]:
-            if any([d>fc for d in (x,y,z)]):
+            if any([d > fc for d in (x, y, z)]):
                 continue
             else:
                 return fc, fc, fc
+
     def get_framing_cube(self):
-        ''' Get the dimensions of the framing cube that constitutes the coordinate system boundaries for the bounding box
-        For most BV file formats this need to be guessed from XEnd, YEnd, and ZEnd in the header.
-        '''
+        """Get the dimensions of the framing cube.
+
+        Get the dimensions of the framing cube that constitutes the
+        coordinate system boundaries for the bounding box.
+        For most BV file formats this need to be guessed from
+        XEnd, YEnd, and ZEnd in the header.
+        """
         return self._framing_cube
 
     def set_framing_cube(self, fc):
-        ''' Set the dimensions of the framing cube that constitutes the coordinate system boundaries for the bounding box
-        For most BV file formats this need to be guessed from XEnd, YEnd, and ZEnd in the header.
+        """Set the dimensions of the framing cube.
+
+        Set the dimensions of the framing cube that constitutes the
+        coordinate system boundaries for the bounding box
+        For most BV file formats this need to be guessed from
+        XEnd, YEnd, and ZEnd in the header.
         Use this if you know about the framing cube for the BV file.
-        '''
+        """
         self._framing_cube = fc
 
     def get_bbox_center(self):
-        ''' Get the center coordinate of the bounding box with respect to the framing cube
-        '''
-        hdr = self._structarr
-        x = hdr['XStart'] + ((hdr['XEnd'] - hdr['XStart'])/2)
-        y = hdr['YStart'] + ((hdr['YEnd'] - hdr['YStart'])/2)
-        z = hdr['ZStart'] + ((hdr['ZEnd'] - hdr['ZStart'])/2)
+        """Get the center coordinate of the bounding box.
+
+        Get the center coordinate of the bounding box with respect to the
+        framing cube.
+        """
+        hdr = self._hdrDict
+        x = hdr['XStart']['value'] + \
+            ((hdr['XEnd']['value'] - hdr['XStart']['value'])/2)
+        y = hdr['YStart']['value'] + \
+            ((hdr['YEnd']['value'] - hdr['YStart']['value'])/2)
+        z = hdr['ZStart']['value'] + \
+            ((hdr['ZEnd']['value'] - hdr['ZStart']['value'])/2)
         return z, y, x
 
     def get_zooms(self):
         shape = self.get_data_shape()
-        return tuple(float(self._structarr['Resolution']) for d in shape[0:3])
+        return tuple(float(self._hdrDict['Resolution']['value'])
+                     for d in shape[0:3])
 
     def set_zooms(self, zooms):
         if type(zooms) == int:
-            self._structarr['Resolution'] = zooms
+            self._hdrDict['Resolution']['value'] = zooms
         else:
             if any([zooms[i] != zooms[i+1] for i in range(len(zooms)-1)]):
                 raise BvError('Zooms for all dimensions must be equal!')
             else:
-                self._structarr['Resolution'] = int(zooms[0])
+                self._hdrDict['Resolution']['value'] = int(zooms[0])
 
     def as_analyze_map(self):
         raise NotImplementedError
 
     def set_data_offset(self, offset):
-        """ Set offset into data file to read data
-        """
+        """Set offset into data file to read data."""
         self._data_offset = offset
 
     def get_data_offset(self):
-        ''' Return offset into data file to read data
-        '''
+        """Return offset into data file to read data."""
         return self._data_offset
 
     def get_slope_inter(self):
-        ''' BV formats do not do scaling
-        '''
+        """BV formats do not do scaling."""
         return None, None
 
+    def check_fix(self):
+        """Do some checks for the BV header."""
+        pass
+
+    def write_to(self, fileobj):
+        """Write header to fileobj.
+
+        Write starts at fileobj current file position.
+
+        Parameters
+        ----------
+        fileobj : file-like object
+           Should implement ``write`` method
+
+        Returns
+        -------
+        None
+        """
+        binaryblock = pack_BV_header(self._hdrDict)
+        fileobj.write(binaryblock)
+
+
 class BvFileImage(SpatialImage):
+
+    """Class to hold information from a BV image file."""
+
     # Set the class of the corresponding header
     header_class = BvFileHeader
 
@@ -406,7 +589,7 @@ class BvFileImage(SpatialImage):
     ImageArrayProxy = CArrayProxy
 
     def update_header(self):
-        ''' Harmonize header with image data and affine
+        """Harmonize header with image data and affine.
 
         >>> data = np.zeros((2,3,4))
         >>> affine = np.diag([1.0,2.0,3.0,1.0])
@@ -419,7 +602,7 @@ class BvFileImage(SpatialImage):
         True
         >>> hdr.get_zooms()
         (1.0, 2.0, 3.0)
-        '''
+        """
         hdr = self._header
         shape = self._dataobj.shape
         # We need to update the header if the data shape has changed.  It's a
@@ -427,17 +610,17 @@ class BvFileImage(SpatialImage):
         # maybe it happened
         if hdr.get_data_shape() != shape:
             hdr.set_data_shape(shape)
-    
+
     @classmethod
     def from_file_map(klass, file_map):
-        '''Load image from `file_map`
+        """Load image from `file_map`.
 
         Parameters
         ----------
         file_map : None or mapping, optional
            files mapping.  If None (default) use object's ``file_map``
            attribute instead
-        '''
+        """
         bvf = file_map['image'].get_prepare_fileobj('rb')
         header = klass.header_class.from_fileobj(bvf)
         affine = header.get_affine()
@@ -451,7 +634,7 @@ class BvFileImage(SpatialImage):
         return img
 
     def _write_header(self, header_file, header):
-        ''' Utility routine to write BV header
+        """Utility routine to write BV header.
 
         Parameters
         ----------
@@ -462,11 +645,11 @@ class BvFileImage(SpatialImage):
            slope for data scaling
         inter : None or float
            intercept for data scaling
-        '''
+        """
         header.write_to(header_file)
 
     def _write_data(self, bvfile, data, header):
-        ''' Utility routine to write BV image
+        """Utility routine to write BV image.
 
         Parameters
         ----------
@@ -477,7 +660,7 @@ class BvFileImage(SpatialImage):
            array to write
         header : analyze-type header object
            header
-        '''
+        """
         shape = header.get_data_shape()
         if data.shape != shape:
             raise HeaderDataError('Data should be shape (%s)' %
@@ -487,14 +670,14 @@ class BvFileImage(SpatialImage):
         array_to_file(data, bvfile, out_dtype, offset, order='C')
 
     def to_file_map(self, file_map=None):
-        ''' Write image to `file_map` or contained ``self.file_map``
+        """Write image to `file_map` or contained ``self.file_map``.
 
         Parameters
         ----------
         file_map : None or mapping, optional
            files mapping.  If None (default) use object's ``file_map``
            attribute instead
-        '''
+        """
         if file_map is None:
             file_map = self.file_map
         data = self.get_data()
@@ -506,22 +689,3 @@ class BvFileImage(SpatialImage):
             self._write_data(bvf, data, hdr)
         self._header = hdr
         self.file_map = file_map
-
-        # out_dtype = self.get_data_dtype()
-        # arr_writer = make_array_writer(data,
-        #                                out_dtype,
-        #                                hdr.has_data_slope,
-        #                                hdr.has_data_intercept)
-        # bvf = file_map['image'].get_prepare_fileobj('wb')
-        # slope, inter = get_slope_inter(arr_writer)
-        # self._write_header(bvf, hdr, slope, inter)
-        # # Write image
-        # shape = hdr.get_data_shape()
-        # if data.shape != shape:
-        #     raise HeaderDataError('Data should be shape (%s)' %
-        #                           ', '.join(str(s) for s in shape))
-        # seek_tell(bvf, hdr.get_data_offset())
-        # arr_writer.to_fileobj(bvf, order='C')
-        # bvf.close_if_mine()
-        # self._header = hdr
-        # self.file_map = file_map
