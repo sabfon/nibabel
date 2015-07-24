@@ -84,7 +84,6 @@ def readCString(f, nStrings=1, bufsize=1000, startPos=None, strip=True,
         str_list.append(lines[s] + suffix)
     return str_list
 
-
 def parse_BV_header(hdr_dict, fileobj):
     """Parse the header of a BV file format.
 
@@ -120,7 +119,6 @@ def parse_BV_header(hdr_dict, fileobj):
                        fileobj.read(calcsize(hdr_dict[key]['dt'])))[0]
     return hdr_dict
 
-
 def pack_BV_header(hdr_dict):
     """Pack the header of a BV file format for (binary) writing to a file.
 
@@ -152,7 +150,6 @@ def pack_BV_header(hdr_dict):
         else:
             binaryblock += pack(hdr_dict[key]['dt'], hdr_dict[key]['value'])
     return binaryblock
-
 
 def calc_BV_header_size(hdr_dict):
     """Calculate the binary size of a hdrDict for a BV file format header.
@@ -186,7 +183,6 @@ def calc_BV_header_size(hdr_dict):
             hdr_size += calcsize(hdr_dict[key]['dt'])
     return hdr_size
 
-
 class BvError(Exception):
 
     """Exception for BV format related problems.
@@ -195,7 +191,6 @@ class BvError(Exception):
     """
 
     pass
-
 
 class BvFileHeader(Header):
 
@@ -582,7 +577,6 @@ class BvFileHeader(Header):
         """
         binaryblock = pack_BV_header(self._hdrDict)
         fileobj.write(binaryblock)
-
 
 class BvFileImage(SpatialImage):
 
