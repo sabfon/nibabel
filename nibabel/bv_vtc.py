@@ -235,7 +235,11 @@ class VtcHeader(BvFileHeader):
             rep.fix_msg = 'not attempting fix'
         return hdr, rep
 
+
 class VtcImage(BvFileImage):
+
+    """Class for BrainVoyager VTC images."""
+
     # Set the class of the corresponding header
     header_class = VtcHeader
 

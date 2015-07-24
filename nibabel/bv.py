@@ -58,9 +58,10 @@ def readCString(f, nStrings=1, bufsize=1000, startPos=None, strip=True,
     rewind: bool, optional
        Whether the fileobj f should be returned to the initial position after
        reading. Default is False.
+
     Returns
     -------
-    [str] : list of string(s)
+    str_list : generator of string(s)
     """
     currentPos = f.tell()
     if strip:
@@ -71,6 +72,7 @@ def readCString(f, nStrings=1, bufsize=1000, startPos=None, strip=True,
         f.seek(startPos)
     data = f.read(bufsize)
     lines = data.split('\x00')
+    str_list = []
     if rewind:
         f.seek(currentPos)
     else:
@@ -79,14 +81,15 @@ def readCString(f, nStrings=1, bufsize=1000, startPos=None, strip=True,
             offset += len(lines[s])+1
         f.seek(currentPos+offset)
     for s in range(nStrings):
-        yield lines[s] + suffix
+        str_list.append(lines[s] + suffix)
+    return str_list
 
 
-def parse_BV_header(hdrDict, fileobj):
+def parse_BV_header(hdr_dict, fileobj):
     """Parse the header of a BV file format.
 
     This function can be (and is) called recursively to iterate through nested
-    fields (e.g. the prts field of the VTC header).
+    fields (e.g. the ``prts`` field of the VTC header).
 
     Parameters
     ----------
@@ -97,28 +100,28 @@ def parse_BV_header(hdrDict, fileobj):
        File object to use. Make sure that the current position is at the
        beginning of the header (e.g. at 0).
     """
-    for key in hdrDict.keys():
+    for key in hdr_dict:
         # handle zero-terminated strings
-        if hdrDict[key]['dt'] == '<s':
-            hdrDict[key]['value'] = readCString(fileobj).next()
+        if hdr_dict[key]['dt'] == '<s':
+            hdr_dict[key]['value'] = readCString(fileobj)[0]
         # handle array fields
-        elif hdrDict[key]['dt'] == 'multi':
+        elif hdr_dict[key]['dt'] == 'multi':
             # empty the list in the value field
-            hdrDict[key]['value'] = []
+            hdr_dict[key]['value'] = []
             # check the length of the array to expect
-            for i in range(hdrDict[hdrDict[key]['nField']]['value']):
+            for i in range(hdr_dict[hdr_dict[key]['nField']]['value']):
                 # recusively iterate through the fields of all items
                 # in the array
-                hdrDict[key]['value'].append(
-                    parse_BV_header(hdrDict[key]['default'][0], fileobj))
+                hdr_dict[key]['value'].append(
+                    parse_BV_header(hdr_dict[key]['default'][0], fileobj))
         else:
-            hdrDict[key]['value'] = \
-                unpack(hdrDict[key]['dt'],
-                       fileobj.read(calcsize(hdrDict[key]['dt'])))[0]
-    return hdrDict
+            hdr_dict[key]['value'] = \
+                unpack(hdr_dict[key]['dt'],
+                       fileobj.read(calcsize(hdr_dict[key]['dt'])))[0]
+    return hdr_dict
 
 
-def pack_BV_header(hdrDict):
+def pack_BV_header(hdr_dict):
     """Pack the header of a BV file format for (binary) writing to a file.
 
     This function can be (and is) called recursively to iterate through nested
@@ -129,26 +132,29 @@ def pack_BV_header(hdrDict):
     hdrDict: OrderedDict
        hdrDict that contains the fields and values to for the respective
        BV file format.
+       A prototype for this OrderedDict is generated during init() for each
+       file type (e.g. see _make_vtc_hdrDict() in bv_vtc.py) and maintains all
+       the fields in the correct order to write a valid header when saving.
     """
     binaryblock = ''
-    for key in hdrDict.keys():
+    for key in hdr_dict:
         # handle zero-terminated strings
-        if hdrDict[key]['dt'] == '<s':
-            binaryblock += pack('<' + str(len(hdrDict[key]['value'])+1) + 's',
-                                hdrDict[key]['value'])
+        if hdr_dict[key]['dt'] == '<s':
+            binaryblock += pack('<' + str(len(hdr_dict[key]['value'])+1) + 's',
+                                hdr_dict[key]['value'] + '\x00')
         # handle array fields
-        elif hdrDict[key]['dt'] == 'multi':
+        elif hdr_dict[key]['dt'] == 'multi':
             # check the length of the array to expect
-            for i in range(hdrDict[hdrDict[key]['nField']]['value']):
+            for i in range(hdr_dict[hdr_dict[key]['nField']]['value']):
                 # recusively iterate through the fields of all items
                 # in the array
-                binaryblock += pack_BV_header(hdrDict[key]['value'][i])
+                binaryblock += pack_BV_header(hdr_dict[key]['value'][i])
         else:
-            binaryblock += pack(hdrDict[key]['dt'], hdrDict[key]['value'])
+            binaryblock += pack(hdr_dict[key]['dt'], hdr_dict[key]['value'])
     return binaryblock
 
 
-def calc_BV_header_size(hdrDict):
+def calc_BV_header_size(hdr_dict):
     """Calculate the binary size of a hdrDict for a BV file format header.
 
     This function can be (and is) called recursively to iterate through nested
@@ -159,22 +165,26 @@ def calc_BV_header_size(hdrDict):
     hdrDict: OrderedDict
        hdrDict that contains the fields and values to for the respective
        BV file format.
+       A prototype for this OrderedDict is generated during init() for each
+       file type (e.g. see _make_vtc_hdrDict() in bv_vtc.py) and maintains all
+       the fields in the correct order to write a valid header when saving.
     """
-    hdrSize = 0
-    for key in hdrDict.keys():
+    hdr_size = 0
+    for key in hdr_dict:
         # handle zero-terminated strings
-        if hdrDict[key]['dt'] == '<s':
-            hdrSize += calcsize('<' + str(len(hdrDict[key]['value'])+1) + 's')
+        if hdr_dict[key]['dt'] == '<s':
+            hdr_size += calcsize('<' +
+                                 str(len(hdr_dict[key]['value'])+1) + 's')
         # handle array fields
-        elif hdrDict[key]['dt'] == 'multi':
+        elif hdr_dict[key]['dt'] == 'multi':
             # check the length of the array to expect
-            for i in range(hdrDict[hdrDict[key]['nField']]['value']):
+            for i in range(hdr_dict[hdr_dict[key]['nField']]['value']):
                 # recusively iterate through the fields of all items
                 # in the array
-                hdrSize += calc_BV_header_size(hdrDict[key]['value'][i])
+                hdr_size += calc_BV_header_size(hdr_dict[key]['value'][i])
         else:
-            hdrSize += calcsize(hdrDict[key]['dt'])
-    return hdrSize
+            hdr_size += calcsize(hdr_dict[key]['dt'])
+    return hdr_size
 
 
 class BvError(Exception):
@@ -222,6 +232,8 @@ class BvFileHeader(Header):
         check : bool, optional
             Whether to check content of header in initialization.
             Default is True.
+        offset : int, optional
+            offset of the actual data into to binary file (in bytes)
         """
         if endianness != self.default_endianness:
             raise BvError('BV files are always little-endian')
