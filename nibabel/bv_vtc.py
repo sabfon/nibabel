@@ -18,56 +18,41 @@ import numpy as np
 from .bv import BvError, BvFileHeader, BvFileImage
 from .spatialimages import HeaderDataError
 from .batteryrunners import Report
-from .externals import OrderedDict
 
-
-def _make_vtc_hdrDict():
-    """Helper for creating a VTC header OrderedDict with default parameters.
-
-    Create an OrderedDict that contains keys with the header fields.
-    The value of each field is a dict containing the DataType (dt), a default
-    value (default) and the actual value (value).
-
-    b := signed char (1 byte)
-    h := signed short integer (2 bytes)
-    s := string (variable bytes)
-    f := float (4 bytes)
-    """
-    VTC_HEADER_PROTO = OrderedDict([
-        ('version', {'dt': '<h', 'default': 3}),
-        ('fmr', {'dt': '<s', 'default': ''}),
-        ('nPrt', {'dt': '<h', 'default': 0}),
-        ('prts',
-            {'dt': 'multi', 'nField': 'nPrt', 'default': [
-                OrderedDict([
-                    ('filename', {'dt': '<s', 'default': '', 'value': ''})
-                ])
-            ]}
-         ),
-        ('currentPrt', {'dt': '<h', 'default': 0}),
-        ('datatype', {'dt': '<h', 'default': 2}),
-        ('volumes', {'dt': '<h', 'default': 0}),
-        ('Resolution', {'dt': '<h', 'default': 3}),
-        ('XStart', {'dt': '<h', 'default': 57}),
-        ('XEnd', {'dt': '<h', 'default': 231}),
-        ('YStart', {'dt': '<h', 'default': 52}),
-        ('YEnd', {'dt': '<h', 'default': 172}),
-        ('ZStart', {'dt': '<h', 'default': 59}),
-        ('ZEnd', {'dt': '<h', 'default': 197}),
-        ('LRConvention', {'dt': '<b', 'default': 1}),
-        ('RefSpace', {'dt': '<b', 'default': 3}),
-        ('TR', {'dt': '<f', 'default': 2000.0})
-    ])
-
-    for k in VTC_HEADER_PROTO.keys():
-        VTC_HEADER_PROTO[k]['value'] = VTC_HEADER_PROTO[k]['default']
-    return VTC_HEADER_PROTO
+VTC_HDR_DICT_PROTO = (
+    ('version', 'h', 3),
+    ('fmr', 'z', b''),
+    ('nPrt', 'h', 0),
+    ('prts', ('nPrt',
+              ('filename', 'z', b''),)),
+    ('currentPrt', 'h', 0),
+    ('datatype', 'h', 2),
+    ('volumes', 'h', 0),
+    ('Resolution', 'h', 3),
+    ('XStart', 'h', 57),
+    ('XEnd', 'h', 231),
+    ('YStart', 'h', 52),
+    ('YEnd', 'h', 172),
+    ('ZStart', 'h', 59),
+    ('ZEnd', 'h', 197),
+    ('LRConvention', 'b', 1),
+    ('RefSpace', 'b', 3),
+    ('TR', 'f', 2000.0)
+    )
 
 class VtcHeader(BvFileHeader):
+
+    """
+    Header for Brainvoyager (BV) VTC files.
+
+    For documentation on the file format see:
+    http://support.brainvoyager.com/installation-introduction/23-file-formats/379-users-guide-23-the-format-of-vtc-files.html
+    """
 
     # format defaults
     allowed_dtypes = [2]
     default_dtype = 2
+    hdr_dict_proto = VTC_HDR_DICT_PROTO
 
     def get_data_shape(self):
         """Get shape of data."""
@@ -140,48 +125,6 @@ class VtcHeader(BvFileHeader):
             self._hdrDict['LRConvention']['value'] = 2
         else:
             self._hdrDict['LRConvention']['value'] = 0
-
-    def update_template_dtype(self,binaryblock=None, item=None, value=None):
-        if binaryblock is None:
-            binaryblock = self.binaryblock
-
-        # find length of fmr filename (start search after the first 2 bytes)
-        # include the stop byte ('\x00') in the string
-        fmrl = binaryblock.find('\x00', 2) - 1
-        fmrlt = 'S' + str(fmrl)
-
-        # find number of linked PRTs
-        nPrt = int(np.fromstring(binaryblock[2+fmrl:2+fmrl+2], np.uint16))
-
-        # find length of name(s) of linked PRT(s)
-        if nPrt == 0:
-            prts = [('prt1', 'S1')]
-        else:
-            prts = []
-            point = 2 + fmrl + 3
-            for prt in range(nPrt):
-                prtl = binaryblock.find('\x00', point) - (point-2)
-                prts.append(('prt' + str(prt+1), 'S' + str(prtl)))
-                point += prtl
-
-        # deep copy the template
-        newTemplate = _make_vtc_header_dtd(fmrlt, prts)
-
-        # handle the items that should be changed
-        if item is not None:
-            newTemplate = [(x[0], x[1]) if x[0] != item else (item, 'S'+str(len(value)+1)) for x in newTemplate]
-
-        dt = np.dtype(newTemplate)
-        self.set_data_offset(dt.itemsize)
-        self.template_dtype = dt
-
-        return newTemplate
-
-    @classmethod
-    def _init_hdrDict(klass):
-        """Return header data for empty header with given endianness."""
-        hdrDict = _make_vtc_hdrDict()
-        return hdrDict
 
     @classmethod
     def _get_checks(klass):
