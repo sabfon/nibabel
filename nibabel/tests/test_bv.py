@@ -23,8 +23,8 @@ import numpy as np
 from ..externals.six import BytesIO, StringIO
 from ..volumeutils import array_to_file
 from ..spatialimages import (HeaderDataError, HeaderTypeError)
-from ..bv import readCString, parse_BV_header, pack_BV_header,\
-calc_BV_header_size, _make_hdr_dict
+from ..bv import (readCString, parse_BV_header, pack_BV_header,\
+                  calc_BV_header_size)
 from ..bv_vtc import VtcHeader, VtcImage, VTC_HDR_DICT_PROTO
 from ..bv_msk import MskHeader, MskImage
 from ..bv_vmp import VmpHeader, VmpImage
@@ -92,27 +92,23 @@ def test_readCString():
 def test_parse_BV_header():
     # open vtc test file
     fileobj = open(vtc_file, 'r')
-    hdrDict = _make_hdr_dict(VTC_HDR_DICT_PROTO)
-    hdrDict = parse_BV_header(hdrDict, fileobj)
-    assert_equal(hdrDict['fmr']['value'], 'test.fmr')
-    assert_equal(hdrDict['XStart']['value'], 120)
-    assert_equal(hdrDict['TR']['value'], 2000.0)
+    hdrDict = parse_BV_header(VTC_HDR_DICT_PROTO, fileobj)
+    assert_equal(hdrDict['fmr'], 'test.fmr')
+    assert_equal(hdrDict['XStart'], 120)
+    assert_equal(hdrDict['TR'], 2000.0)
 
 def test_pack_BV_header():
     # open vtc test file
     fileobj = open(vtc_file, 'r')
-    hdrDict = _make_hdr_dict(VTC_HDR_DICT_PROTO)
-    hdrDict = parse_BV_header(hdrDict, fileobj)
-    binaryblock = pack_BV_header(hdrDict)
-    print binaryblock
+    hdrDict = parse_BV_header(VTC_HDR_DICT_PROTO, fileobj)
+    binaryblock = pack_BV_header(VTC_HDR_DICT_PROTO, hdrDict)
     assert_equal(binaryblock, '\x03\x00test.fmr\x00\x01\x00test.prt\x00\x00\x00\x02\x00\x05\x00\x03\x00x\x00\x96\x00x\x00\x96\x00x\x00\x96\x00\x01\x01\x00\x00\xfaD')
 
 def test_calc_BV_header_size():
     # open vtc test file
     fileobj = open(vtc_file, 'r')
-    hdrDict = _make_hdr_dict(VTC_HDR_DICT_PROTO)
-    hdrDict = parse_BV_header(hdrDict, fileobj)
-    hdrSize = calc_BV_header_size(hdrDict)
+    hdrDict = parse_BV_header(VTC_HDR_DICT_PROTO, fileobj)
+    hdrSize = calc_BV_header_size(VTC_HDR_DICT_PROTO, hdrDict)
     assert_equal(hdrSize, 48)
 
 def test_VtcImage():
