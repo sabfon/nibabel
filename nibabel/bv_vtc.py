@@ -23,8 +23,7 @@ VTC_HDR_DICT_PROTO = (
     ('version', 'h', 3),
     ('fmr', 'z', b''),
     ('nPrt', 'h', 0),
-    ('prts', ('nPrt',
-              ('filename', 'z', b''),)),
+    ('prts', (('filename', 'z', b''),), 'nPrt'),
     ('currentPrt', 'h', 0),
     ('datatype', 'h', 2),
     ('volumes', 'h', 0),
@@ -58,13 +57,13 @@ class VtcHeader(BvFileHeader):
         """Get shape of data."""
         hdr = self._hdrDict
         # calculate dimensions
-        z = (hdr['ZEnd']['value'] -
-             hdr['ZStart']['value']) / hdr['Resolution']['value']
-        y = (hdr['YEnd']['value'] -
-             hdr['YStart']['value']) / hdr['Resolution']['value']
-        x = (hdr['XEnd']['value'] -
-             hdr['XStart']['value']) / hdr['Resolution']['value']
-        t = hdr['volumes']['value']
+        z = (hdr['ZEnd'] -
+             hdr['ZStart']) / hdr['Resolution']
+        y = (hdr['YEnd'] -
+             hdr['YStart']) / hdr['Resolution']
+        x = (hdr['XEnd'] -
+             hdr['XStart']) / hdr['Resolution']
+        t = hdr['volumes']
         return tuple(int(d) for d in [z, y, x, t])
 
     def set_data_shape(self, shape=None, zyx=None, t=None):
@@ -90,26 +89,26 @@ class VtcHeader(BvFileHeader):
             # Dimensions will start from standard coordinates.
             if len(shape) != 4:
                 raise BvError('Shape for VTC files must be 4 dimensional!')
-            self._hdrDict['XEnd']['value'] = \
-                57 + (shape[2] * self._hdrDict['Resolution']['value'])
-            self._hdrDict['YEnd']['value'] = \
-                52 + (shape[1] * self._hdrDict['Resolution']['value'])
-            self._hdrDict['ZEnd']['value'] = \
-                59 + (shape[0] * self._hdrDict['Resolution']['value'])
-            self._hdrDict['volumes']['value'] = shape[3]
+            self._hdrDict['XEnd'] = \
+                57 + (shape[2] * self._hdrDict['Resolution'])
+            self._hdrDict['YEnd'] = \
+                52 + (shape[1] * self._hdrDict['Resolution'])
+            self._hdrDict['ZEnd'] = \
+                59 + (shape[0] * self._hdrDict['Resolution'])
+            self._hdrDict['volumes'] = shape[3]
             return
-        self._hdrDict['XStart']['value'] = zyx[2][0]
-        self._hdrDict['XEnd']['value'] = zyx[2][1]
-        self._hdrDict['YStart']['value'] = zyx[1][0]
-        self._hdrDict['YEnd']['value'] = zyx[1][1]
-        self._hdrDict['ZStart']['value'] = zyx[0][0]
-        self._hdrDict['ZEnd']['value'] = zyx[0][1]
+        self._hdrDict['XStart'] = zyx[2][0]
+        self._hdrDict['XEnd'] = zyx[2][1]
+        self._hdrDict['YStart'] = zyx[1][0]
+        self._hdrDict['YEnd'] = zyx[1][1]
+        self._hdrDict['ZStart'] = zyx[0][0]
+        self._hdrDict['ZEnd'] = zyx[0][1]
         if t is not None:
-            self._hdrDict['volumes']['value'] = t
+            self._hdrDict['volumes'] = t
 
     def get_xflip(self):
         """Get xflip for data."""
-        xflip = int(self._hdrDict['LRConvention']['value'])
+        xflip = int(self._hdrDict['LRConvention'])
         if xflip == 1:
             return True
         elif xflip == 2:
@@ -120,11 +119,11 @@ class VtcHeader(BvFileHeader):
     def set_xflip(self, xflip):
         """Set xflip for data."""
         if xflip is True:
-            self._hdrDict['LRConvention']['value'] = 1
+            self._hdrDict['LRConvention'] = 1
         elif xflip is False:
-            self._hdrDict['LRConvention']['value'] = 2
+            self._hdrDict['LRConvention'] = 2
         else:
-            self._hdrDict['LRConvention']['value'] = 0
+            self._hdrDict['LRConvention'] = 0
 
     @classmethod
     def _get_checks(klass):
@@ -139,7 +138,7 @@ class VtcHeader(BvFileHeader):
     @classmethod
     def _chk_fileversion(klass, hdr, fix=False):
         rep = Report(HeaderDataError)
-        if hdr['version']['value'] == 3:
+        if hdr['version'] == 3:
             return hdr, rep
         rep.problem_level = 40
         rep.problem_msg = 'only fileversion 3 is supported at the moment!'
@@ -162,7 +161,7 @@ class VtcHeader(BvFileHeader):
     @classmethod
     def _chk_datatype(klass, hdr, fix=False):
         rep = Report(HeaderDataError)
-        code = int(hdr['datatype']['value'])
+        code = int(hdr['datatype'])
         try:
             dtype = klass._data_type_codes.dtype[code]
         except KeyError:
