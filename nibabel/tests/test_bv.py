@@ -23,8 +23,9 @@ import numpy as np
 from ..externals.six import BytesIO, StringIO
 from ..volumeutils import array_to_file
 from ..spatialimages import (HeaderDataError, HeaderTypeError)
-from ..bv import readCString, parse_BV_header, pack_BV_header, calc_BV_header_size
-from ..bv_vtc import VtcHeader, VtcImage, _make_vtc_hdrDict
+from ..bv import readCString, parse_BV_header, pack_BV_header,\
+calc_BV_header_size, _make_hdr_dict
+from ..bv_vtc import VtcHeader, VtcImage, VTC_HDR_DICT_PROTO
 from ..bv_msk import MskHeader, MskImage
 from ..bv_vmp import VmpHeader, VmpImage
 from ..nifti1 import Nifti1Header
@@ -91,7 +92,7 @@ def test_readCString():
 def test_parse_BV_header():
     # open vtc test file
     fileobj = open(vtc_file, 'r')
-    hdrDict = _make_vtc_hdrDict()
+    hdrDict = _make_hdr_dict(VTC_HDR_DICT_PROTO)
     hdrDict = parse_BV_header(hdrDict, fileobj)
     assert_equal(hdrDict['fmr']['value'], 'test.fmr')
     assert_equal(hdrDict['XStart']['value'], 120)
@@ -100,7 +101,7 @@ def test_parse_BV_header():
 def test_pack_BV_header():
     # open vtc test file
     fileobj = open(vtc_file, 'r')
-    hdrDict = _make_vtc_hdrDict()
+    hdrDict = _make_hdr_dict(VTC_HDR_DICT_PROTO)
     hdrDict = parse_BV_header(hdrDict, fileobj)
     binaryblock = pack_BV_header(hdrDict)
     print binaryblock
@@ -109,7 +110,7 @@ def test_pack_BV_header():
 def test_calc_BV_header_size():
     # open vtc test file
     fileobj = open(vtc_file, 'r')
-    hdrDict = _make_vtc_hdrDict()
+    hdrDict = _make_hdr_dict(VTC_HDR_DICT_PROTO)
     hdrDict = parse_BV_header(hdrDict, fileobj)
     hdrSize = calc_BV_header_size(hdrDict)
     assert_equal(hdrSize, 48)
