@@ -52,6 +52,8 @@ from .test_minc1 import EXAMPLE_IMAGES as MINC1_EXAMPLE_IMAGES
 from .test_minc2 import EXAMPLE_IMAGES as MINC2_EXAMPLE_IMAGES
 from .test_parrec import EXAMPLE_IMAGES as PARREC_EXAMPLE_IMAGES
 from .test_bv_vtc import EXAMPLE_IMAGES as BV_VTC_EXAMPLE_IMAGES
+from .test_bv_msk import EXAMPLE_IMAGES as BV_MSK_EXAMPLE_IMAGES
+from .test_bv_vmp import EXAMPLE_IMAGES as BV_VMP_EXAMPLE_IMAGES
 
 
 class GenericImageAPI(ValidateAPI):
@@ -435,3 +437,13 @@ class TestBvVtcAPI(LoadImageAPI):
     has_scaling = True
     can_save = True
     standard_extension = '.vtc'
+
+
+class TestBvMskAPI(LoadImageAPI):
+    def loader(self, fname):
+        return MskImage.load(fname)
+
+    example_images = BV_MSK_EXAMPLE_IMAGES
+    has_scaling = True
+    can_save = True
+    standard_extension = '.msk'
