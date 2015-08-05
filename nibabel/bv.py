@@ -123,7 +123,7 @@ def parse_BV_header(hdr_dict_proto, fileobj):
     The description of `hdr_dict_proto` below is notated according to
     https://docs.python.org/3/reference/introduction.html#notation
 
-        hdr_dict_proto ::= (element_proto))*
+        hdr_dict_proto ::= ((element_proto))*
         element_proto ::= '(' name ',' pack_format ',' default ')'  |
                           '(' name ',' hdr_dict_proto ',' n_fields_name ')'
         pack_format ::= 'b' | 'h' | 'f' | 'z'
@@ -157,7 +157,7 @@ def parse_BV_header(hdr_dict_proto, fileobj):
 
 
 def pack_BV_header(hdr_dict_proto, hdr_dict):
-    """Pack the header of a BV file format into a byte string
+    """Pack the header of a BV file format into a byte string.
 
     This function can be (and is) called recursively to iterate through nested
     fields (e.g. the ``prts`` field of the VTC header).
