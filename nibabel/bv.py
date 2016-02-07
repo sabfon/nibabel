@@ -15,17 +15,15 @@ Author: Thomas Emmerling
 '''
 
 import numpy as np
-import sys
 
-from .volumeutils import allopen, array_to_file, array_from_file, Recoder
-from .spatialimages import HeaderDataError, HeaderTypeError, SpatialImage
-from .fileholders import FileHolder,  copy_file_map
+from .volumeutils import array_to_file, array_from_file
+from .spatialimages import HeaderDataError, SpatialImage
+from .fileholders import copy_file_map
 from .arrayproxy import CArrayProxy
-from .volumeutils import shape_zoom_affine, seek_tell, make_dt_codes
+from .volumeutils import make_dt_codes
 from .wrapstruct import LabeledWrapStruct
-from .batteryrunners import Report, BatteryRunner
 
-_dtdefs = ( # code, conversion function, equivalent dtype, aliases
+_dtdefs = (  # code, conversion function, equivalent dtype, aliases
     (1, 'int16', np.uint16),
     (2, 'float32', np.float32),
     (3, 'uint8', np.uint8))
@@ -33,12 +31,14 @@ _dtdefs = ( # code, conversion function, equivalent dtype, aliases
 # Make full code alias bank, including dtype column
 data_type_codes = make_dt_codes(_dtdefs)
 
+
 class BvError(Exception):
     """Exception for BV format related problems.
 
     To be raised whenever there is a problem with a BV fileformat.
     """
     pass
+
 
 class BvFileHeader(LabeledWrapStruct):
     """Class to hold information from a BV file header.
@@ -49,9 +49,11 @@ class BvFileHeader(LabeledWrapStruct):
     _field_recoders = {'datatype': data_type_codes}
 
     # format defaults
-    default_x_flip = True # BV files are radiological (left-is-right) by default (VTC files have a flag for that, however)
-    endianness = '<' # BV files are always little-endian
-    allowed_dtypes = [1,2,3]
+    # BV files are radiological (left-is-right) by default
+    # (VTC files have a flag for that, however)
+    default_x_flip = True
+    endianness = '<'  # BV files are always little-endian
+    allowed_dtypes = [1, 2, 3]
     default_dtype = 2
 
     def __init__(self,
@@ -72,7 +74,6 @@ class BvFileHeader(LabeledWrapStruct):
             Whether to check content of header in initialization.
             Default is True.
         '''
-
         if binaryblock is None:
             self._structarr = self.__class__.default_structarr()
             self.update_template_dtype(binaryblock)
@@ -81,8 +82,8 @@ class BvFileHeader(LabeledWrapStruct):
         self.update_template_dtype(binaryblock)
 
         wstr = np.ndarray(shape=(),
-                         dtype=self.template_dtype,
-                         buffer=binaryblock[:self.template_dtype.itemsize])
+                          dtype=self.template_dtype,
+                          buffer=binaryblock[:self.template_dtype.itemsize])
         self._structarr = wstr.copy()
         self._framing_cube = self._guess_framing_cube()
         if check:
@@ -118,8 +119,8 @@ class BvFileHeader(LabeledWrapStruct):
         if isinstance(value, basestring):
             self.update_template_dtype(item=item, value=value)
             wstr = np.ndarray(shape=(),
-                             dtype=self.template_dtype,
-                             buffer=np.zeros(self.template_dtype.itemsize))
+                              dtype=self.template_dtype,
+                              buffer=np.zeros(self.template_dtype.itemsize))
             for key in self.keys():
                 wstr[key] = self._structarr[key]
             self._structarr = wstr.copy()
@@ -159,7 +160,7 @@ class BvFileHeader(LabeledWrapStruct):
         obj = klass(check=check)
         if header is None:
             return obj
-        try: # check if there is a specific conversion routine
+        try:  # check if there is a specific conversion routine
             mapping = header.as_bv_map()
         except AttributeError:
             # most basic conversion
@@ -254,7 +255,7 @@ class BvFileHeader(LabeledWrapStruct):
     def set_xflip(self, xflip):
         ''' Set xflip for data
         '''
-        if xflip == True:
+        if xflip:
             return
         else:
             raise BvError('cannot change Left-right convention!')
@@ -294,24 +295,24 @@ class BvFileHeader(LabeledWrapStruct):
         '''
         zooms = self.get_zooms()
         if not self.get_xflip():
-            zooms[0] *= -1 # make the BV internal Z axis neurological (left-is-left); not default in BV files!
-
+            # make the BV internal Z axis neurological (left-is-left); not default in BV files!
+            zooms[0] *= -1
 
         # compute the rotation
-        rot = np.zeros((3,3))
-        rot[:,0] = [-zooms[0], 0 , 0] # make the flipped BV Z axis the new R axis
-        rot[:,1] = [0, 0, -zooms[2]] # make the flipped BV X axis the new A axis
-        rot[:,2] = [0, -zooms[1], 0] # make the flipped BV Y axis the new S axis
+        rot = np.zeros((3, 3))
+        rot[:, 0] = [-zooms[0], 0, 0]  # make the flipped BV Z axis the new R axis
+        rot[:, 1] = [0, 0, -zooms[2]]  # make the flipped BV X axis the new A axis
+        rot[:, 2] = [0, -zooms[1], 0]  # make the flipped BV Y axis the new S axis
 
         # compute the translation
-        fcc = np.array(self.get_framing_cube())/2 # center of framing cube
-        bbc = np.array(self.get_bbox_center()) # center of bounding box
-        tra = np.dot((bbc-fcc),rot)
+        fcc = np.array(self.get_framing_cube()) / 2  # center of framing cube
+        bbc = np.array(self.get_bbox_center())  # center of bounding box
+        tra = np.dot((bbc - fcc), rot)
 
         # assemble
         M = np.eye(4, 4)
-        M[0:3,0:3] = rot
-        M[0:3,3] = tra.T
+        M[0:3, 0:3] = rot
+        M[0:3, 3] = tra.T
 
         return M
 
@@ -322,8 +323,11 @@ class BvFileHeader(LabeledWrapStruct):
     get_affine = get_base_affine
 
     def _guess_framing_cube(self):
-        ''' Guess the dimensions of the framing cube that constitutes the coordinate system boundaries for the bounding box
-        For most BV file formats this need to be guessed from XEnd, YEnd, and ZEnd in the header.
+        '''Guess the dimensions of the framing cube that constitutes
+        the coordinate system boundaries for the bounding box.
+
+        For most BV file formats this need to be guessed from XEnd, YEnd,
+        and ZEnd in the header.
         '''
         # then start guessing...
         hdr = self._structarr
@@ -335,19 +339,27 @@ class BvFileHeader(LabeledWrapStruct):
 
         # compare with possible framing cubes
         for fc in [256, 384, 512, 768, 1024]:
-            if any([d>fc for d in (x,y,z)]):
+            if any([d > fc for d in (x, y, z)]):
                 continue
             else:
                 return fc, fc, fc
+
     def get_framing_cube(self):
-        ''' Get the dimensions of the framing cube that constitutes the coordinate system boundaries for the bounding box
-        For most BV file formats this need to be guessed from XEnd, YEnd, and ZEnd in the header.
+        ''' Get the dimensions of the framing cube that constitutes the
+        coordinate system boundaries for the bounding box.
+
+        For most BV file formats this need to be guessed from XEnd, YEnd,
+        and ZEnd in the header.
         '''
         return self._framing_cube
 
     def set_framing_cube(self, fc):
-        ''' Set the dimensions of the framing cube that constitutes the coordinate system boundaries for the bounding box
-        For most BV file formats this need to be guessed from XEnd, YEnd, and ZEnd in the header.
+        ''' Set the dimensions of the framing cube that constitutes the coordinate
+        system boundaries for the bounding box
+
+        For most BV file formats this need to be guessed from XEnd, YEnd,
+        and ZEnd in the header.
+
         Use this if you know about the framing cube for the BV file.
         '''
         self._framing_cube = fc
@@ -356,9 +368,9 @@ class BvFileHeader(LabeledWrapStruct):
         ''' Get the center coordinate of the bounding box with respect to the framing cube
         '''
         hdr = self._structarr
-        x = hdr['XStart'] + ((hdr['XEnd'] - hdr['XStart'])/2)
-        y = hdr['YStart'] + ((hdr['YEnd'] - hdr['YStart'])/2)
-        z = hdr['ZStart'] + ((hdr['ZEnd'] - hdr['ZStart'])/2)
+        x = hdr['XStart'] + ((hdr['XEnd'] - hdr['XStart']) / 2)
+        y = hdr['YStart'] + ((hdr['YEnd'] - hdr['YStart']) / 2)
+        z = hdr['ZStart'] + ((hdr['ZEnd'] - hdr['ZStart']) / 2)
         return z, y, x
 
     def get_zooms(self):
@@ -369,7 +381,7 @@ class BvFileHeader(LabeledWrapStruct):
         if type(zooms) == int:
             self._structarr['Resolution'] = zooms
         else:
-            if any([zooms[i] != zooms[i+1] for i in range(len(zooms)-1)]):
+            if any([zooms[i] != zooms[i + 1] for i in range(len(zooms) - 1)]):
                 raise BvError('Zooms for all dimensions must be equal!')
             else:
                 self._structarr['Resolution'] = int(zooms[0])
@@ -391,6 +403,7 @@ class BvFileHeader(LabeledWrapStruct):
         ''' BV formats do not do scaling
         '''
         return None, None
+
 
 class BvFileImage(SpatialImage):
     # Set the class of the corresponding header
@@ -427,7 +440,7 @@ class BvFileImage(SpatialImage):
         # maybe it happened
         if hdr.get_data_shape() != shape:
             hdr.set_data_shape(shape)
-    
+
     @classmethod
     def from_file_map(klass, file_map):
         '''Load image from `file_map`

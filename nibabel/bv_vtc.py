@@ -15,11 +15,12 @@ Author: Thomas Emmerling
 '''
 
 import numpy as np
-from .bv import BvError,BvFileHeader,BvFileImage
-from .spatialimages import HeaderDataError, HeaderTypeError
+from .bv import BvError, BvFileHeader, BvFileImage
+from .spatialimages import HeaderDataError
 from .batteryrunners import Report
 
-def _make_vtc_header_dtd(fmrlt,prts):
+
+def _make_vtc_header_dtd(fmrlt, prts):
     ''' Helper for creating a VTC header dtype with given parameters
     '''
     vtc_header_dtd = \
@@ -27,7 +28,7 @@ def _make_vtc_header_dtd(fmrlt,prts):
             ('version', 'i2'),
             ('fmr', fmrlt),
             ('nPrt', 'i2'),
-            ('prts',prts),
+            ('prts', prts),
             ('currentPrt', 'i2'),
             ('datatype', 'i2'),
             ('volumes', 'i2'),
@@ -43,6 +44,7 @@ def _make_vtc_header_dtd(fmrlt,prts):
             ('TR', 'f4'),
         ]
     return vtc_header_dtd
+
 
 class VtcHeader(BvFileHeader):
 
@@ -79,7 +81,8 @@ class VtcHeader(BvFileHeader):
         if (shape is None) and (zyx is None) and (t is None):
             raise BvError('Shape, zyx, or t needs to be specified!')
         if shape is not None:
-            # Use zyx and t parameters instead of shape. Dimensions will start from standard coordinates.
+            # Use zyx and t parameters instead of shape. Dimensions will start from
+            # standard coordinates.
             if len(shape) != 4:
                 raise BvError('Shape for VTC files must be 4 dimensional!')
             self._structarr['XEnd'] = 57 + (shape[2] * self._structarr['Resolution'])
@@ -110,14 +113,14 @@ class VtcHeader(BvFileHeader):
     def set_xflip(self, xflip):
         ''' Set xflip for data
         '''
-        if xflip == True:
+        if xflip:
             self._structarr['LRConvention'] = 1
-        elif xflip == False:
+        elif not xflip:
             self._structarr['LRConvention'] = 2
         else:
             self._structarr['LRConvention'] = 0
 
-    def update_template_dtype(self,binaryblock=None, item=None, value=None):
+    def update_template_dtype(self, binaryblock=None, item=None, value=None):
         if binaryblock is None:
             binaryblock = self.binaryblock
 
@@ -127,7 +130,7 @@ class VtcHeader(BvFileHeader):
         fmrlt = 'S' + str(fmrl)
 
         # find number of linked PRTs
-        nPrt = int(np.fromstring(binaryblock[2+fmrl:2+fmrl+2],np.uint16))
+        nPrt = int(np.fromstring(binaryblock[2 + fmrl:2 + fmrl + 2], np.uint16))
 
         # find length of name(s) of linked PRT(s)
         if nPrt == 0:
@@ -136,17 +139,18 @@ class VtcHeader(BvFileHeader):
             prts = []
             point = 2 + fmrl + 3
             for prt in range(nPrt):
-                prtl = binaryblock.find('\x00', point) - (point-2)
-                prts.append(('prt' + str(prt+1), 'S' + str(prtl)))
+                prtl = binaryblock.find('\x00', point) - (point - 2)
+                prts.append(('prt' + str(prt + 1), 'S' + str(prtl)))
                 point += prtl
 
         # deep copy the template
-        newTemplate = _make_vtc_header_dtd(fmrlt,prts)
+        newTemplate = _make_vtc_header_dtd(fmrlt, prts)
 
         # handle the items that should be changed
         if item is not None:
-            newTemplate = [(x[0], x[1]) if x[0] != item else (item, 'S'+str(len(value)+1)) for x in newTemplate]
-        
+            newTemplate = [(x[0], x[1]) if x[0] != item else (
+                item, 'S' + str(len(value) + 1)) for x in newTemplate]
+
         dt = np.dtype(newTemplate)
         self.set_data_offset(dt.itemsize)
         self.template_dtype = dt
@@ -157,9 +161,8 @@ class VtcHeader(BvFileHeader):
     def default_structarr(klass, endianness=None):
         ''' Return header data for empty header with given endianness
         '''
-
         # create the template
-        newTemplate = _make_vtc_header_dtd('S1',[('prt1','S1')])
+        newTemplate = _make_vtc_header_dtd('S1', [('prt1', 'S1')])
 
         dt = np.dtype(newTemplate)
         hdr = np.zeros((), dtype=dt)
@@ -234,6 +237,7 @@ class VtcHeader(BvFileHeader):
         if fix:
             rep.fix_msg = 'not attempting fix'
         return hdr, rep
+
 
 class VtcImage(BvFileImage):
     # Set the class of the corresponding header

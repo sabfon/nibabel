@@ -15,7 +15,7 @@ Author: Thomas Emmerling
 '''
 
 import numpy as np
-from .bv import BvError,BvFileHeader,BvFileImage
+from .bv import BvError, BvFileHeader, BvFileImage
 
 # template for MSK header
 msk_header_dtd = \
@@ -29,10 +29,11 @@ msk_header_dtd = \
         ('ZEnd', 'i2')
     ]
 
+
 class MskHeader(BvFileHeader):
     '''Class for BrainVoyager MSK header
     '''
-    #copy of module-level template definition
+    # copy of module-level template definition
     template = msk_header_dtd
 
     # format defaults
@@ -48,7 +49,7 @@ class MskHeader(BvFileHeader):
         y = (hdr['YEnd'] - hdr['YStart']) / hdr['Resolution']
         x = (hdr['XEnd'] - hdr['XStart']) / hdr['Resolution']
 
-        return tuple(int(d) for d in [z,y,x])
+        return tuple(int(d) for d in [z, y, x])
 
     def set_data_shape(self, shape=None, zyx=None):
         ''' Set shape of data
@@ -66,7 +67,8 @@ class MskHeader(BvFileHeader):
         if (shape is None) and (zyx is None):
             raise BvError('Shape or zyx needs to be specified!')
         if shape is not None:
-            # Use zyx and t parameters instead of shape. Dimensions will start from standard coordinates.
+            # Use zyx and t parameters instead of shape.
+            # Dimensions will start from standard coordinates.
             if len(shape) != 3:
                 raise BvError('Shape for MSK files must be 3 dimensional!')
             self._structarr['XEnd'] = 57 + (shape[2] * self._structarr['Resolution'])
@@ -80,7 +82,7 @@ class MskHeader(BvFileHeader):
         self._structarr['ZStart'] = zyx[2][0]
         self._structarr['ZEnd'] = zyx[2][1]
 
-    def update_template_dtype(self,binaryblock=None, item=None, value=None):
+    def update_template_dtype(self, binaryblock=None, item=None, value=None):
         dt = np.dtype(self.template)
         self.set_data_offset(dt.itemsize)
         self.template_dtype = dt
@@ -108,6 +110,7 @@ class MskHeader(BvFileHeader):
     def _get_checks(klass):
         ''' Return sequence of check functions for this class '''
         return ()
+
 
 class MskImage(BvFileImage):
     ''' Class for BrainVoyager MSK masks
