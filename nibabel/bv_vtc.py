@@ -39,6 +39,7 @@ VTC_HDR_DICT_PROTO = (
     ('TR', 'f', 2000.0)
     )
 
+
 class VtcHeader(BvFileHeader):
 
     """

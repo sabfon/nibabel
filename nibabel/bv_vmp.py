@@ -15,11 +15,10 @@ Author: Thomas Emmerling
 '''
 
 import numpy as np
-from .bv import BvError,BvFileHeader,BvFileImage
-from .spatialimages import HeaderDataError, HeaderTypeError
-from .batteryrunners import Report
+from .bv import BvError, BvFileHeader, BvFileImage
 
-def _make_vmp_header_dtd(vtclt,prtlt,voilt):
+
+def _make_vmp_header_dtd(vtclt, prtlt, voilt):
     ''' Helper for creating a VMP header dtype with given parameters
     '''
     vmp_header_dtd = \
@@ -50,7 +49,8 @@ def _make_vmp_header_dtd(vtclt,prtlt,voilt):
         ]
     return vmp_header_dtd
 
-def _make_vmp_submap_header_dtd(submap,maplt,lutlt,mStore,fdrl):
+
+def _make_vmp_submap_header_dtd(submap, maplt, lutlt, mStore, fdrl):
     ''' Helper for creating a VMP submap header dtype with given parameters
 
     Parameters
@@ -69,7 +69,7 @@ def _make_vmp_submap_header_dtd(submap,maplt,lutlt,mStore,fdrl):
     '''
     vmp_submap_header_dtd = \
         (
-            'map' + str(submap+1),[
+            'map' + str(submap + 1), [
                 ('TypeOfMap', 'i4'),
                 ('MapThreshold', 'f4'),
                 ('UpperThreshold', 'f4'),
@@ -119,38 +119,40 @@ def _make_vmp_submap_header_dtd(submap,maplt,lutlt,mStore,fdrl):
         )
     return vmp_submap_header_dtd
 
+
 def _fill_default_vmp_submap_header(hdr, submap):
     ''' Helper for filling a default submap for a VMP header
     '''
-    hdr['map' + str(submap+1)]['TypeOfMap'] = 1
-    hdr['map' + str(submap+1)]['MapThreshold'] = 1.6500
-    hdr['map' + str(submap+1)]['UpperThreshold'] = 8
-    hdr['map' + str(submap+1)]['MapName'] = 'New Map'
-    hdr['map' + str(submap+1)]['PosMin']['R'] = 255
-    hdr['map' + str(submap+1)]['PosMin']['G'] = 0
-    hdr['map' + str(submap+1)]['PosMin']['B'] = 0
-    hdr['map' + str(submap+1)]['PosMax']['R'] = 255
-    hdr['map' + str(submap+1)]['PosMax']['G'] = 255
-    hdr['map' + str(submap+1)]['PosMax']['B'] = 0
-    hdr['map' + str(submap+1)]['NegMin']['R'] = 255
-    hdr['map' + str(submap+1)]['NegMin']['G'] = 0
-    hdr['map' + str(submap+1)]['NegMin']['B'] = 255
-    hdr['map' + str(submap+1)]['NegMax']['R'] = 0
-    hdr['map' + str(submap+1)]['NegMax']['G'] = 0
-    hdr['map' + str(submap+1)]['NegMax']['B'] = 255
-    hdr['map' + str(submap+1)]['UseVMPColor'] = 0
-    hdr['map' + str(submap+1)]['LUTFileName'] = '<default>'
-    hdr['map' + str(submap+1)]['TransparentColorFactor'] = 1.0
-    hdr['map' + str(submap+1)]['ClusterSizeThreshold'] = 50
-    hdr['map' + str(submap+1)]['EnableClusterSizeThreshold'] = 0
-    hdr['map' + str(submap+1)]['ShowValuesAboveUpperThreshold'] = 1
-    hdr['map' + str(submap+1)]['DF1'] = 249
-    hdr['map' + str(submap+1)]['DF2'] = 0
-    hdr['map' + str(submap+1)]['ShowPosNegValues'] = 3
-    hdr['map' + str(submap+1)]['NrOfUsedVoxels'] = 45555
-    hdr['map' + str(submap+1)]['SizeOfFDRTable'] = 0
-    hdr['map' + str(submap+1)]['UseFDRTableIndex'] = 0
+    hdr['map' + str(submap + 1)]['TypeOfMap'] = 1
+    hdr['map' + str(submap + 1)]['MapThreshold'] = 1.6500
+    hdr['map' + str(submap + 1)]['UpperThreshold'] = 8
+    hdr['map' + str(submap + 1)]['MapName'] = 'New Map'
+    hdr['map' + str(submap + 1)]['PosMin']['R'] = 255
+    hdr['map' + str(submap + 1)]['PosMin']['G'] = 0
+    hdr['map' + str(submap + 1)]['PosMin']['B'] = 0
+    hdr['map' + str(submap + 1)]['PosMax']['R'] = 255
+    hdr['map' + str(submap + 1)]['PosMax']['G'] = 255
+    hdr['map' + str(submap + 1)]['PosMax']['B'] = 0
+    hdr['map' + str(submap + 1)]['NegMin']['R'] = 255
+    hdr['map' + str(submap + 1)]['NegMin']['G'] = 0
+    hdr['map' + str(submap + 1)]['NegMin']['B'] = 255
+    hdr['map' + str(submap + 1)]['NegMax']['R'] = 0
+    hdr['map' + str(submap + 1)]['NegMax']['G'] = 0
+    hdr['map' + str(submap + 1)]['NegMax']['B'] = 255
+    hdr['map' + str(submap + 1)]['UseVMPColor'] = 0
+    hdr['map' + str(submap + 1)]['LUTFileName'] = '<default>'
+    hdr['map' + str(submap + 1)]['TransparentColorFactor'] = 1.0
+    hdr['map' + str(submap + 1)]['ClusterSizeThreshold'] = 50
+    hdr['map' + str(submap + 1)]['EnableClusterSizeThreshold'] = 0
+    hdr['map' + str(submap + 1)]['ShowValuesAboveUpperThreshold'] = 1
+    hdr['map' + str(submap + 1)]['DF1'] = 249
+    hdr['map' + str(submap + 1)]['DF2'] = 0
+    hdr['map' + str(submap + 1)]['ShowPosNegValues'] = 3
+    hdr['map' + str(submap + 1)]['NrOfUsedVoxels'] = 45555
+    hdr['map' + str(submap + 1)]['SizeOfFDRTable'] = 0
+    hdr['map' + str(submap + 1)]['UseFDRTableIndex'] = 0
     return hdr
+
 
 class VmpHeader(BvFileHeader):
     ''' Class for BrainVoyager NR-VMP header
@@ -168,7 +170,7 @@ class VmpHeader(BvFileHeader):
         y = (hdr['YEnd'] - hdr['YStart']) / hdr['Resolution']
         x = (hdr['XEnd'] - hdr['XStart']) / hdr['Resolution']
         n = hdr['NrOfSubMaps']
-        return tuple(int(d) for d in [n,z,y,x])
+        return tuple(int(d) for d in [n, z, y, x])
 
     def set_data_shape(self, shape=None, zyx=None, n=None):
         ''' Set shape of data
@@ -190,7 +192,8 @@ class VmpHeader(BvFileHeader):
 
         nc = self._structarr['NrOfSubMaps']
         if shape is not None:
-            # Use zyx and t parameters instead of shape. Dimensions will start from default coordinates.
+            # Use zyx and t parameters instead of shape. Dimensions will start from
+            # default coordinates.
             if len(shape) != 4:
                 raise BvError('Shape for VMP files must be 4 dimensional (NZYX)!')
             self._structarr['XEnd'] = 57 + (shape[3] * self._structarr['Resolution'])
@@ -216,21 +219,24 @@ class VmpHeader(BvFileHeader):
             self._structarr['NrOfSubMaps'] = n
 
     def get_framing_cube(self):
-        ''' Get the dimensions of the framing cube that constitutes the coordinate system boundaries for the bounding box
+        ''' Get the dimensions of the framing cube that constitutes
+        the coordinate system boundaries for the bounding box.
         '''
         hdr = self._structarr
         return hdr['DimZ'], hdr['DimY'], hdr['DimX']
 
     def set_framing_cube(self, fc):
-        ''' Set the dimensions of the framing cube that constitutes the coordinate system boundaries for the bounding box
-        For VMP files this puts the values also into the header
+        ''' Set the dimensions of the framing cube that constitutes
+        the coordinate system boundaries for the bounding box.
+
+        For VMP files this puts the values also into the header.
         '''
         self._structarr['DimZ'] = fc[0]
         self._structarr['DimY'] = fc[1]
         self._structarr['DimX'] = fc[2]
         self._framing_cube = fc
 
-    def update_template_dtype(self,binaryblock=None, item=None, value=None):
+    def update_template_dtype(self, binaryblock=None, item=None, value=None):
         ''' (Re-)Parse the binaryblock to update the header dtype
 
         Parameters
@@ -251,22 +257,23 @@ class VmpHeader(BvFileHeader):
             binaryblock = self.binaryblock
 
         # check for file version
-        if int(np.fromstring(binaryblock[4:6],np.uint16)) != 6:
+        if int(np.fromstring(binaryblock[4:6], np.uint16)) != 6:
             raise BvError('Only NR-VMP files with file version 6 are supported!')
 
-        ### OK, start with pre-parsing the binaryblock and include the stop byte ('\x00') in all strings
+        # OK, start with pre-parsing the binaryblock and include the stop byte
+        # ('\x00') in all strings
         point = 76
 
         # find the number of sub-maps/component maps
-        nSubMaps = int(np.fromstring(binaryblock[8:12],np.uint32))
+        nSubMaps = int(np.fromstring(binaryblock[8:12], np.uint32))
         if nSubMaps < 1:
             raise BvError('NR-VMP files need at least one sub-map!')
 
         # find the number of time points
-        nTimePoints = int(np.fromstring(binaryblock[12:16],np.uint32))
+        nTimePoints = int(np.fromstring(binaryblock[12:16], np.uint32))
 
         # find the number of component parameters
-        nComponentParams = int(np.fromstring(binaryblock[16:20],np.uint32))
+        nComponentParams = int(np.fromstring(binaryblock[16:20], np.uint32))
 
         # find length of vtc filename
         vtcl = binaryblock.find('\x00', point) - (point - 1)
@@ -284,12 +291,12 @@ class VmpHeader(BvFileHeader):
         point += voil
 
         # assemble first part of header dtype
-        newTemplate = _make_vmp_header_dtd(vtclt,prtlt,voilt)
+        newTemplate = _make_vmp_header_dtd(vtclt, prtlt, voilt)
 
-        ## start to pre-parse through loop over NrOfSubMaps
+        # start to pre-parse through loop over NrOfSubMaps
         for submap in range(nSubMaps):
             # find type of map - certain fields are only stored of MapType == 3
-            mType = int(np.fromstring(binaryblock[point:point+4],np.uint32))
+            mType = int(np.fromstring(binaryblock[point:point + 4], np.uint32))
             if mType == 3:
                 mStore = 1
             else:
@@ -310,23 +317,23 @@ class VmpHeader(BvFileHeader):
                 point += (lutl + 26)
 
             # find size of FDR table
-            fdrl = int(np.fromstring(binaryblock[point:point+4],np.uint32))
-            point += (8 + (3*4*fdrl))
+            fdrl = int(np.fromstring(binaryblock[point:point + 4], np.uint32))
+            point += (8 + (3 * 4 * fdrl))
 
             # append the new submap to the header template
-            newTemplate.append(_make_vmp_submap_header_dtd(submap,maplt,lutlt,mStore,fdrl))
+            newTemplate.append(_make_vmp_submap_header_dtd(submap, maplt, lutlt, mStore, fdrl))
 
-        ## append loop for time course values
+        # append loop for time course values
         newTemplate.append(
             ('timepoint', 'f4', (nTimePoints,))
         )
 
-        ## start to pre-parse through loop over NrOfComponentsParams
+        # start to pre-parse through loop over NrOfComponentsParams
         componentparams = []
         for componentparam in range(nComponentParams):
             cpnl = binaryblock.find('\x00', point) - (point - 1)
             cpnlt = 'S' + str(cpnl)
-            point += (cpnl + (nSubMaps*4))
+            point += (cpnl + (nSubMaps * 4))
 
             componentparams.append(
                 (
@@ -344,21 +351,23 @@ class VmpHeader(BvFileHeader):
             # is it in the first level?
             if type(item) == str:
                 field1 = [x for x in enumerate(newTemplate) if (x[1][0] == item)]
-                newTemplate[field1[0][0]] = (field1[0][1][0], 'S'+str(len(value)+1))
+                newTemplate[field1[0][0]] = (field1[0][1][0], 'S' + str(len(value) + 1))
 
             # it is on second level
             else:
                 field1 = [x for x in enumerate(newTemplate) if (x[1][0] == item[0])]
-                field2 = [x for x in enumerate(newTemplate[field1[0][0]][1]) if (x[1][0] == item[1])]
-                newTemplate[field1[0][0]][1][field2[0][0]] = (field2[0][1][0], 'S'+str(len(value)+1))
-        
+                field2 = [x for x in enumerate(newTemplate[field1[0][0]][
+                                               1]) if (x[1][0] == item[1])]
+                newTemplate[field1[0][0]][1][field2[0][0]] = (
+                    field2[0][1][0], 'S' + str(len(value) + 1))
+
         dt = np.dtype(newTemplate)
         self.set_data_offset(dt.itemsize)
         self.template_dtype = dt
 
         return newTemplate
 
-    def _add_submap(self,n=1):
+    def _add_submap(self, n=1):
         ''' Add a submap to the VMP header
 
         Parameters
@@ -374,13 +383,14 @@ class VmpHeader(BvFileHeader):
         oldhdr = self._structarr
         newTemplate = self.update_template_dtype()
         mapn = self._structarr['NrOfSubMaps']
-        lastmapind = [ind for ind,field in enumerate(newTemplate) if 'map' in field[0]][-1]
+        lastmapind = [ind for ind, field in enumerate(newTemplate) if 'map' in field[0]][-1]
         if lastmapind is None:
             raise BvError('No Maps defined in VMP header!')
 
         # insert the new submaps into the header dtype template
         for newmap in range(n):
-            newTemplate.insert(lastmapind+1+newmap,_make_vmp_submap_header_dtd(mapn+newmap,'S8','S10',0,0))
+            newTemplate.insert(lastmapind + 1 + newmap,
+                               _make_vmp_submap_header_dtd(mapn + newmap, 'S8', 'S10', 0, 0))
         dt = np.dtype(newTemplate)
         self.set_data_offset(dt.itemsize)
         self.template_dtype = dt
@@ -392,14 +402,14 @@ class VmpHeader(BvFileHeader):
 
         # fill the new submaps with default data
         for newmap in range(n):
-            hdr = _fill_default_vmp_submap_header(hdr,mapn+newmap)
+            hdr = _fill_default_vmp_submap_header(hdr, mapn + newmap)
 
         # save the new number of submaps to header
-        hdr['NrOfSubMaps'] = mapn+n
+        hdr['NrOfSubMaps'] = mapn + n
         self._structarr = hdr
         self.update_template_dtype()
 
-    def _rem_submap(self,n=1):
+    def _rem_submap(self, n=1):
         ''' Remove a submap to the VMP header
 
         Parameters
@@ -416,7 +426,7 @@ class VmpHeader(BvFileHeader):
         oldhdr = self._structarr
         newTemplate = self.update_template_dtype()
         mapn = self._structarr['NrOfSubMaps']
-        mapind = [ind for ind,field in enumerate(newTemplate) if 'map' in field[0]][-n]
+        mapind = [ind for ind, field in enumerate(newTemplate) if 'map' in field[0]][-n]
         if mapind is None:
             raise BvError('No Maps defined in VMP header!')
 
@@ -436,7 +446,7 @@ class VmpHeader(BvFileHeader):
             hdr[key] = oldhdr[key]
 
         # save the new number of submaps to header
-        hdr['NrOfSubMaps'] = mapn-n
+        hdr['NrOfSubMaps'] = mapn - n
         self._structarr = hdr
         self.update_template_dtype()
 
@@ -445,9 +455,8 @@ class VmpHeader(BvFileHeader):
         ''' Return header data for empty header with given endianness
         (filled with standard values from the BV documentation)
         '''
-
-        newTemplate = _make_vmp_header_dtd('S1','S1','S1')
-        newTemplate.append(_make_vmp_submap_header_dtd(0,'S8','S10',0,0))
+        newTemplate = _make_vmp_header_dtd('S1', 'S1', 'S1')
+        newTemplate.append(_make_vmp_submap_header_dtd(0, 'S8', 'S10', 0, 0))
 
         dt = np.dtype(newTemplate)
         hdr = np.zeros((), dtype=dt)
@@ -473,7 +482,7 @@ class VmpHeader(BvFileHeader):
         hdr['DimY'] = 256
         hdr['DimZ'] = 256
         hdr['NameOfVTCFile'] = ''
-        hdr['NameOfProtocolFile'] = '' 
+        hdr['NameOfProtocolFile'] = ''
         hdr['NameOfVOIRFile'] = ''
 
         hdr = _fill_default_vmp_submap_header(hdr, 0)
@@ -484,6 +493,7 @@ class VmpHeader(BvFileHeader):
     def _get_checks(klass):
         ''' Return sequence of check functions for this class '''
         return ()
+
 
 class VmpImage(BvFileImage):
     # Set the class of the corresponding header

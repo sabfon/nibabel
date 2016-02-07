@@ -580,7 +580,7 @@ class BvFileHeader(Header):
         if type(zooms) == int:
             self._hdrDict['Resolution'] = zooms
         else:
-            if any([zooms[i] != zooms[i+1] for i in range(len(zooms)-1)]):
+            if any([zooms[i] != zooms[i + 1] for i in range(len(zooms) - 1)]):
                 raise BvError('Zooms for all dimensions must be equal!')
             else:
                 self._hdrDict['Resolution'] = int(zooms[0])

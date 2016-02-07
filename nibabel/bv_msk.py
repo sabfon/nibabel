@@ -27,6 +27,7 @@ MSK_HDR_DICT_PROTO = (
     )
 
 
+
 class MskHeader(BvFileHeader):
 
     """Class for BrainVoyager MSK header."""
