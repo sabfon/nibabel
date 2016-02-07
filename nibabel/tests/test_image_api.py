@@ -32,12 +32,13 @@ from ..optpkg import optional_package
 _, have_scipy, _ = optional_package('scipy')
 _, have_h5py, _ = optional_package('h5py')
 
-from .. import (AnalyzeImage, Spm99AnalyzeImage, Spm2AnalyzeImage,
-                Nifti1Pair, Nifti1Image, Nifti2Pair, Nifti2Image,
-                MGHImage, Minc1Image, Minc2Image,VtcImage,MskImage,
-                VmpImage)
-from ..spatialimages import SpatialImage
-from .. import minc1, minc2, parrec
+from nibabel import (AnalyzeImage, Spm99AnalyzeImage, Spm2AnalyzeImage,
+                     Nifti1Pair, Nifti1Image, Nifti2Pair, Nifti2Image,
+                     MGHImage, Minc1Image, Minc2Image, BvVtcImage, BvMskImage,
+                     BvVmpImage)
+from nibabel.spatialimages import SpatialImage
+from nibabel.ecat import EcatImage
+from nibabel import minc1, minc2, parrec
 
 from nose import SkipTest
 from nose.tools import (assert_true, assert_false, assert_raises,

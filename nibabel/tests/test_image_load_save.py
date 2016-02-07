@@ -23,7 +23,7 @@ from .. import nifti1 as ni1
 from .. import loadsave as nils
 from .. import (Nifti1Image, Nifti1Header, Nifti1Pair, Nifti2Image, Nifti2Pair,
                 Minc1Image, Minc2Image, Spm2AnalyzeImage, Spm99AnalyzeImage,
-                AnalyzeImage, MGHImage, all_image_classes)
+                AnalyzeImage, MGHImage, BvVtcImage, BvMskImage, BvVmpImage, all_image_classes)
 from ..tmpdirs import InTemporaryDirectory
 from ..volumeutils import native_code, swapped_code
 from ..optpkg import optional_package
@@ -324,10 +324,10 @@ def test_guessed_image_type():
         Spm2AnalyzeImage)
     assert_equal(nils.guessed_image_type(
         pjoin(DATA_PATH, 'test.vtc')),
-        VtcImage)
+        BvVtcImage)
     assert_equal(nils.guessed_image_type(
         pjoin(DATA_PATH, 'test.msk')),
-        MskImage)
+        BvMskImage)
     assert_equal(nils.guessed_image_type(
         pjoin(DATA_PATH, 'test.vmp')),
-        VmpImage)
+        BvVmpImage)

@@ -40,7 +40,7 @@ VTC_HDR_DICT_PROTO = (
     )
 
 
-class VtcHeader(BvFileHeader):
+class BvVtcHeader(BvFileHeader):
 
     """
     Header for Brainvoyager (BV) VTC files.
@@ -179,15 +179,12 @@ class VtcHeader(BvFileHeader):
         return hdr, rep
 
 
-class VtcImage(BvFileImage):
-
-    """Class for BrainVoyager VTC images."""
-
+class BvVtcImage(BvFileImage):
     # Set the class of the corresponding header
-    header_class = VtcHeader
+    header_class = BvVtcHeader
 
     # Set the label ('image') and the extension ('.vtc') for a VTC file
     files_types = (('image', '.vtc'),)
 
-load = VtcImage.load
-save = VtcImage.instance_to_filename
+load = BvVtcImage.load
+save = BvVtcImage.instance_to_filename
