@@ -16,8 +16,8 @@ Author: Thomas Emmerling
 
 import numpy as np
 from .bv import BvError, BvFileHeader, BvFileImage
-from .spatialimages import HeaderDataError
-from .batteryrunners import Report
+from ..spatialimages import HeaderDataError
+from ..batteryrunners import Report
 
 
 def _make_vtc_header_dtd(fmrlt, prts):

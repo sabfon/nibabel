@@ -16,12 +16,12 @@ Author: Thomas Emmerling
 
 import numpy as np
 
-from .volumeutils import array_to_file, array_from_file
-from .spatialimages import HeaderDataError, SpatialImage
-from .fileholders import copy_file_map
-from .arrayproxy import CArrayProxy
-from .volumeutils import make_dt_codes
-from .wrapstruct import LabeledWrapStruct
+from ..volumeutils import array_to_file, array_from_file
+from ..spatialimages import HeaderDataError, SpatialImage
+from ..fileholders import copy_file_map
+from ..arrayproxy import CArrayProxy
+from ..volumeutils import make_dt_codes
+from ..wrapstruct import LabeledWrapStruct
 
 _dtdefs = (  # code, conversion function, equivalent dtype, aliases
     (1, 'int16', np.uint16),
