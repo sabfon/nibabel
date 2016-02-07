@@ -9,21 +9,24 @@
 """ Testing spatialimages
 
 """
-from ..externals.six import BytesIO
+
+import warnings
 
 import numpy as np
 
-from ..spatialimages import (Header, SpatialImage, HeaderDataError,
-                             ImageDataError)
+from ..externals.six import BytesIO
+from ..spatialimages import (SpatialHeader, SpatialImage, HeaderDataError,
+                             Header, ImageDataError)
 
 from unittest import TestCase
-
 from nose.tools import (assert_true, assert_false, assert_equal,
                         assert_not_equal, assert_raises)
-
 from numpy.testing import assert_array_equal, assert_array_almost_equal
 
 from .test_helpers import bytesio_round_trip
+from ..testing import clear_and_catch_warnings, suppress_warnings
+from ..tmpdirs import InTemporaryDirectory
+from .. import load as top_load
 
 
 def test_header_init():
@@ -36,17 +39,17 @@ def test_header_init():
     assert_equal(hdr.get_data_dtype(), np.dtype(np.float64))
     assert_equal(hdr.get_data_shape(), (0,))
     assert_equal(hdr.get_zooms(), (1.0,))
-    hdr = Header(np.float64, shape=(1,2,3))
+    hdr = Header(np.float64, shape=(1, 2, 3))
     assert_equal(hdr.get_data_dtype(), np.dtype(np.float64))
-    assert_equal(hdr.get_data_shape(), (1,2,3))
+    assert_equal(hdr.get_data_shape(), (1, 2, 3))
     assert_equal(hdr.get_zooms(), (1.0, 1.0, 1.0))
-    hdr = Header(np.float64, shape=(1,2,3), zooms=None)
+    hdr = Header(np.float64, shape=(1, 2, 3), zooms=None)
     assert_equal(hdr.get_data_dtype(), np.dtype(np.float64))
-    assert_equal(hdr.get_data_shape(), (1,2,3))
+    assert_equal(hdr.get_data_shape(), (1, 2, 3))
     assert_equal(hdr.get_zooms(), (1.0, 1.0, 1.0))
-    hdr = Header(np.float64, shape=(1,2,3), zooms=(3.0, 2.0, 1.0))
+    hdr = Header(np.float64, shape=(1, 2, 3), zooms=(3.0, 2.0, 1.0))
     assert_equal(hdr.get_data_dtype(), np.dtype(np.float64))
-    assert_equal(hdr.get_data_shape(), (1,2,3))
+    assert_equal(hdr.get_data_shape(), (1, 2, 3))
     assert_equal(hdr.get_zooms(), (3.0, 2.0, 1.0))
 
 
@@ -57,19 +60,23 @@ def test_from_header():
     assert_equal(Header(), empty)
     empty = Header.from_header(None)
     assert_equal(Header(), empty)
-    hdr = Header(np.float64, shape=(1,2,3), zooms=(3.0, 2.0, 1.0))
+    hdr = Header(np.float64, shape=(1, 2, 3), zooms=(3.0, 2.0, 1.0))
     copy = Header.from_header(hdr)
     assert_equal(hdr, copy)
     assert_false(hdr is copy)
+
     class C(object):
+
         def get_data_dtype(self): return np.dtype('u2')
-        def get_data_shape(self): return (5,4,3)
+
+        def get_data_shape(self): return (5, 4, 3)
+
         def get_zooms(self): return (10.0, 9.0, 8.0)
     converted = Header.from_header(C())
     assert_true(isinstance(converted, Header))
     assert_equal(converted.get_data_dtype(), np.dtype('u2'))
-    assert_equal(converted.get_data_shape(), (5,4,3))
-    assert_equal(converted.get_zooms(), (10.0,9.0,8.0))
+    assert_equal(converted.get_data_shape(), (5, 4, 3))
+    assert_equal(converted.get_zooms(), (10.0, 9.0, 8.0))
 
 
 def test_eq():
@@ -78,25 +85,25 @@ def test_eq():
     assert_equal(hdr, other)
     other = Header('u2')
     assert_not_equal(hdr, other)
-    other = Header(shape=(1,2,3))
+    other = Header(shape=(1, 2, 3))
     assert_not_equal(hdr, other)
-    hdr = Header(shape=(1,2))
-    other = Header(shape=(1,2))
+    hdr = Header(shape=(1, 2))
+    other = Header(shape=(1, 2))
     assert_equal(hdr, other)
-    other = Header(shape=(1,2), zooms=(2.0,3.0))
+    other = Header(shape=(1, 2), zooms=(2.0, 3.0))
     assert_not_equal(hdr, other)
 
 
 def test_copy():
     # test that copy makes independent copy
-    hdr = Header(np.float64, shape=(1,2,3), zooms=(3.0, 2.0, 1.0))
+    hdr = Header(np.float64, shape=(1, 2, 3), zooms=(3.0, 2.0, 1.0))
     hdr_copy = hdr.copy()
-    hdr.set_data_shape((4,5,6))
-    assert_equal(hdr.get_data_shape(), (4,5,6))
-    assert_equal(hdr_copy.get_data_shape(), (1,2,3))
-    hdr.set_zooms((4,5,6))
-    assert_equal(hdr.get_zooms(), (4,5,6))
-    assert_equal(hdr_copy.get_zooms(), (3,2,1))
+    hdr.set_data_shape((4, 5, 6))
+    assert_equal(hdr.get_data_shape(), (4, 5, 6))
+    assert_equal(hdr_copy.get_data_shape(), (1, 2, 3))
+    hdr.set_zooms((4, 5, 6))
+    assert_equal(hdr.get_zooms(), (4, 5, 6))
+    assert_equal(hdr_copy.get_zooms(), (3, 2, 1))
     hdr.set_data_dtype(np.uint8)
     assert_equal(hdr.get_data_dtype(), np.dtype(np.uint8))
     assert_equal(hdr_copy.get_data_dtype(), np.dtype(np.float64))
@@ -105,16 +112,16 @@ def test_copy():
 def test_shape_zooms():
     hdr = Header()
     hdr.set_data_shape((1, 2, 3))
-    assert_equal(hdr.get_data_shape(), (1,2,3))
-    assert_equal(hdr.get_zooms(), (1.0,1.0,1.0))
+    assert_equal(hdr.get_data_shape(), (1, 2, 3))
+    assert_equal(hdr.get_zooms(), (1.0, 1.0, 1.0))
     hdr.set_zooms((4, 3, 2))
-    assert_equal(hdr.get_zooms(), (4.0,3.0,2.0))    
+    assert_equal(hdr.get_zooms(), (4.0, 3.0, 2.0))
     hdr.set_data_shape((1, 2))
-    assert_equal(hdr.get_data_shape(), (1,2))
-    assert_equal(hdr.get_zooms(), (4.0,3.0))
+    assert_equal(hdr.get_data_shape(), (1, 2))
+    assert_equal(hdr.get_zooms(), (4.0, 3.0))
     hdr.set_data_shape((1, 2, 3))
-    assert_equal(hdr.get_data_shape(), (1,2,3))
-    assert_equal(hdr.get_zooms(), (4.0,3.0,1.0))
+    assert_equal(hdr.get_data_shape(), (1, 2, 3))
+    assert_equal(hdr.get_zooms(), (4.0, 3.0, 1.0))
     # null shape is (0,)
     hdr.set_data_shape(())
     assert_equal(hdr.get_data_shape(), (0,))
@@ -122,12 +129,12 @@ def test_shape_zooms():
     # zooms of wrong lengths raise error
     assert_raises(HeaderDataError, hdr.set_zooms, (4.0, 3.0))
     assert_raises(HeaderDataError,
-                        hdr.set_zooms,
-                        (4.0, 3.0, 2.0, 1.0))
+                  hdr.set_zooms,
+                  (4.0, 3.0, 2.0, 1.0))
     # as do negative zooms
     assert_raises(HeaderDataError,
-                        hdr.set_zooms,
-                        (4.0, 3.0, -2.0))
+                  hdr.set_zooms,
+                  (4.0, 3.0, -2.0))
 
 
 def test_data_dtype():
@@ -140,37 +147,52 @@ def test_data_dtype():
 
 
 def test_affine():
-    hdr = Header(np.float64, shape=(1,2,3), zooms=(3.0, 2.0, 1.0))
+    hdr = Header(np.float64, shape=(1, 2, 3), zooms=(3.0, 2.0, 1.0))
     assert_array_almost_equal(hdr.get_best_affine(),
-                                    [[-3.0,0,0,0],
-                                     [0,2,0,-1],
-                                     [0,0,1,-1],
-                                     [0,0,0,1]])
+                              [[-3.0, 0, 0, 0],
+                               [0, 2, 0, -1],
+                               [0, 0, 1, -1],
+                               [0, 0, 0, 1]])
     hdr.default_x_flip = False
     assert_array_almost_equal(hdr.get_best_affine(),
-                                    [[3.0,0,0,0],
-                                     [0,2,0,-1],
-                                     [0,0,1,-1],
-                                     [0,0,0,1]])
+                              [[3.0, 0, 0, 0],
+                               [0, 2, 0, -1],
+                               [0, 0, 1, -1],
+                               [0, 0, 0, 1]])
     assert_array_equal(hdr.get_base_affine(),
                        hdr.get_best_affine())
 
 
 def test_read_data():
-    hdr = Header(np.int32, shape=(1,2,3), zooms=(3.0, 2.0, 1.0))
-    fobj = BytesIO()
-    data = np.arange(6).reshape((1,2,3))
-    hdr.data_to_fileobj(data, fobj)
-    assert_equal(fobj.getvalue(),
-                       data.astype(np.int32).tostring(order='F'))
-    fobj.seek(0)
-    data2 = hdr.data_from_fileobj(fobj)
-    assert_array_equal(data, data2)
+    class CHeader(SpatialHeader):
+        data_layout = 'C'
+    for klass, order in ((SpatialHeader, 'F'), (CHeader, 'C')):
+        hdr = klass(np.int32, shape=(1, 2, 3), zooms=(3.0, 2.0, 1.0))
+        fobj = BytesIO()
+        data = np.arange(6).reshape((1, 2, 3))
+        hdr.data_to_fileobj(data, fobj)
+        assert_equal(fobj.getvalue(),
+                     data.astype(np.int32).tostring(order=order))
+        # data_to_fileobj accepts kwarg 'rescale', but no effect in this case
+        fobj.seek(0)
+        hdr.data_to_fileobj(data, fobj, rescale=True)
+        assert_equal(fobj.getvalue(),
+                     data.astype(np.int32).tostring(order=order))
+        # data_to_fileobj can be a list
+        fobj.seek(0)
+        hdr.data_to_fileobj(data.tolist(), fobj, rescale=True)
+        assert_equal(fobj.getvalue(),
+                     data.astype(np.int32).tostring(order=order))
+        # Read data back again
+        fobj.seek(0)
+        data2 = hdr.data_from_fileobj(fobj)
+        assert_array_equal(data, data2)
 
 
 class DataLike(object):
     # Minimal class implementing 'data' API
     shape = (3,)
+
     def __array__(self):
         return np.arange(3)
 
@@ -186,25 +208,25 @@ class TestSpatialImage(TestCase):
         arr = np.arange(24, dtype=np.int16).reshape((2, 3, 4))
         aff = np.eye(4)
         img = img_klass(arr, aff)
-        assert_array_equal(img.get_affine(), aff)
-        aff[0,0] = 99
-        assert_false(np.all(img.get_affine() == aff))
+        assert_array_equal(img.affine, aff)
+        aff[0, 0] = 99
+        assert_false(np.all(img.affine == aff))
         # header, created by image creation
-        ihdr = img.get_header()
+        ihdr = img.header
         # Pass it back in
         img = img_klass(arr, aff, ihdr)
         # Check modifying header outside does not modify image
         ihdr.set_zooms((4, 5, 6))
-        assert_not_equal(img.get_header(), ihdr)
+        assert_not_equal(img.header, ihdr)
 
     def test_float_affine(self):
         # Check affines get converted to float
         img_klass = self.image_class
         arr = np.arange(3, dtype=np.int16)
         img = img_klass(arr, np.eye(4, dtype=np.float32))
-        assert_equal(img.get_affine().dtype, np.dtype(np.float64))
+        assert_equal(img.affine.dtype, np.dtype(np.float64))
         img = img_klass(arr, np.eye(4, dtype=np.int16))
-        assert_equal(img.get_affine().dtype, np.dtype(np.float64))
+        assert_equal(img.affine.dtype, np.dtype(np.float64))
 
     def test_images(self):
         # Assumes all possible images support int16
@@ -212,7 +234,7 @@ class TestSpatialImage(TestCase):
         arr = np.arange(24, dtype=np.int16).reshape((2, 3, 4))
         img = self.image_class(arr, None)
         assert_array_equal(img.get_data(), arr)
-        assert_equal(img.get_affine(), None)
+        assert_equal(img.affine, None)
 
     def test_default_header(self):
         # Check default header is as expected
@@ -239,7 +261,7 @@ class TestSpatialImage(TestCase):
         # is None, and that unsupported dtypes raise an error
         img_klass = self.image_class
         hdr_klass = self.image_class.header_class
-        data = np.arange(24, dtype=np.int32).reshape((2,3,4))
+        data = np.arange(24, dtype=np.int32).reshape((2, 3, 4))
         affine = np.eye(4)
         img = img_klass(data, affine)
         self.check_dtypes(data.dtype, img.get_data_dtype())
@@ -256,8 +278,8 @@ class TestSpatialImage(TestCase):
         arr = np.arange(4, dtype=np.int16)
         img = img_klass(arr, np.eye(4))
         assert_equal(img.shape, (4,))
-        img = img_klass(np.zeros((2,3,4), dtype=np.float32), np.eye(4))
-        assert_equal(img.shape, (2,3,4))
+        img = img_klass(np.zeros((2, 3, 4), dtype=np.float32), np.eye(4))
+        assert_equal(img.shape, (2, 3, 4))
 
     def test_str(self):
         # Check something comes back from string representation
@@ -268,7 +290,7 @@ class TestSpatialImage(TestCase):
         img = img_klass(arr, np.eye(4))
         assert_true(len(str(img)) > 0)
         assert_equal(img.shape, (5,))
-        img = img_klass(np.zeros((2,3,4), dtype=np.int16), np.eye(4))
+        img = img_klass(np.zeros((2, 3, 4), dtype=np.int16), np.eye(4))
         assert_true(len(str(img)) > 0)
 
     def test_get_shape(self):
@@ -278,9 +300,10 @@ class TestSpatialImage(TestCase):
         # Assumes all possible images support int16
         # See https://github.com/nipy/nibabel/issues/58
         img = img_klass(np.arange(1, dtype=np.int16), np.eye(4))
-        assert_equal(img.get_shape(), (1,))
-        img = img_klass(np.zeros((2,3,4), np.int16), np.eye(4))
-        assert_equal(img.get_shape(), (2,3,4))
+        with suppress_warnings():
+            assert_equal(img.get_shape(), (1,))
+            img = img_klass(np.zeros((2, 3, 4), np.int16), np.eye(4))
+            assert_equal(img.get_shape(), (2, 3, 4))
 
     def test_get_data(self):
         # Test array image and proxy image interface
@@ -310,3 +333,72 @@ class TestSpatialImage(TestCase):
         rt_img.uncache()
         assert_false(rt_img.get_data() is out_data)
         assert_array_equal(rt_img.get_data(), in_data)
+
+
+class MmapImageMixin(object):
+    """ Mixin for testing images that may return memory maps """
+    #: whether to test mode of returned memory map
+    check_mmap_mode = True
+
+    def write_image(self):
+        """ Return an image and an image filname to test against
+        """
+        img_klass = self.image_class
+        shape = (3, 4, 2)
+        data = np.arange(np.prod(shape), dtype=np.int16).reshape(shape)
+        img = img_klass(data, None)
+        fname = 'test' + img_klass.files_types[0][1]
+        img.to_filename(fname)
+        return img, fname
+
+    def test_load_mmap(self):
+        # Test memory mapping when loading images
+        img_klass = self.image_class
+        with InTemporaryDirectory():
+            # This should have no scaling, can be mmapped
+            img, fname = self.write_image()
+            file_map = img.file_map.copy()
+            for func, param1 in ((img_klass.from_filename, fname),
+                                 (img_klass.load, fname),
+                                 (top_load, fname),
+                                 (img_klass.from_file_map, file_map)):
+                for mmap, expected_mode in (
+                        # mmap value, expected memmap mode
+                        # mmap=None -> no mmap value
+                        # expected mode=None -> no memmap returned
+                        (None, 'c'),
+                        (True, 'c'),
+                        ('c', 'c'),
+                        ('r', 'r'),
+                        (False, None)):
+                    kwargs = {}
+                    if mmap is not None:
+                        kwargs['mmap'] = mmap
+                    back_img = func(param1, **kwargs)
+                    back_data = back_img.get_data()
+                    if expected_mode is None:
+                        assert_false(isinstance(back_data, np.memmap),
+                                     'Should not be a %s' % img_klass.__name__)
+                    else:
+                        assert_true(isinstance(back_data, np.memmap),
+                                    'Not a %s' % img_klass.__name__)
+                        if self.check_mmap_mode:
+                            assert_equal(back_data.mode, expected_mode)
+                    del back_img, back_data
+                # Check that mmap is keyword-only
+                assert_raises(TypeError, func, param1, True)
+                # Check invalid values raise error
+                assert_raises(ValueError, func, param1, mmap='rw')
+                assert_raises(ValueError, func, param1, mmap='r+')
+
+
+def test_header_deprecated():
+    with clear_and_catch_warnings() as w:
+        warnings.simplefilter('always', DeprecationWarning)
+
+        class MyHeader(Header):
+            pass
+        assert_equal(len(w), 0)
+
+        MyHeader()
+        assert_equal(len(w), 1)

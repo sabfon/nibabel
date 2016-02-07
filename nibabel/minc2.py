@@ -30,12 +30,13 @@ import numpy as np
 from .optpkg import optional_package
 h5py, have_h5py, setup_module = optional_package('h5py')
 
-from .minc1 import Minc1File, Minc1Image, MincError
+from .minc1 import Minc1File, MincHeader, Minc1Image, MincError
 
 
 class Hdf5Bunch(object):
     """ Make object for accessing attributes of variable
     """
+
     def __init__(self, var):
         for name, value in var.attrs.items():
             setattr(self, name, value)
@@ -48,6 +49,7 @@ class Minc2File(Minc1File):
     this only when reading a MINC2 file, to pull out useful header
     information, and for the method of reading the data out
     '''
+
     def __init__(self, mincfile):
         self._mincfile = mincfile
         minc_part = mincfile['minc-2.0']
@@ -58,7 +60,7 @@ class Minc2File(Minc1File):
         dimensions = minc_part['dimensions']
         self._dims = [Hdf5Bunch(dimensions[s]) for s in self._dim_names]
         # We don't currently support irregular spacing
-        # http://en.wikibooks.org/wiki/MINC/Reference/MINC2.0_File_Format_Reference#Dimension_variable_attributes
+        # https://en.wikibooks.org/wiki/MINC/Reference/MINC2.0_File_Format_Reference#Dimension_variable_attributes
         for dim in self._dims:
             if dim.spacing != b'regular__':
                 raise ValueError('Irregular spacing not supported')
@@ -70,8 +72,12 @@ class Minc2File(Minc1File):
     def _get_dimensions(self, var):
         # Dimensions for a particular variable
         # Differs for MINC1 and MINC2 - see:
-        # http://en.wikibooks.org/wiki/MINC/Reference/MINC2.0_File_Format_Reference#Associating_HDF5_dataspaces_with_MINC_dimensions
-        return var.attrs['dimorder'].split(',')
+        # https://en.wikibooks.org/wiki/MINC/Reference/MINC2.0_File_Format_Reference#Associating_HDF5_dataspaces_with_MINC_dimensions
+        try:
+            dimorder = var.attrs['dimorder'].decode()
+        except KeyError:  # No specified dimensions
+            return []
+        return dimorder.split(',')
 
     def get_data_dtype(self):
         return self._image.dtype
@@ -97,9 +103,44 @@ class Minc2File(Minc1File):
                                  'data type range')
         return np.asarray(valid_range, dtype=np.float)
 
-    def get_scaled_data(self):
-        data =  np.asarray(self._image)
-        return self._normalize(data)
+    def _get_scalar(self, var):
+        """ Get scalar value from HDF5 scalar """
+        return var.value
+
+    def _get_array(self, var):
+        """ Get array from HDF5 array """
+        return np.asanyarray(var)
+
+    def get_scaled_data(self, sliceobj=()):
+        """ Return scaled data for slice definition `sliceobj`
+
+        Parameters
+        ----------
+        sliceobj : tuple, optional
+            slice definition. If not specified, return whole array
+
+        Returns
+        -------
+        scaled_arr : array
+            array from minc file with scaling applied
+        """
+        if sliceobj == ():
+            raw_data = np.asanyarray(self._image)
+        else:  # Try slicing into the HDF array (maybe it's possible)
+            try:
+                raw_data = self._image[sliceobj]
+            except (ValueError, TypeError):
+                raw_data = np.asanyarray(self._image)[sliceobj]
+            else:
+                raw_data = np.asanyarray(raw_data)
+        return self._normalize(raw_data, sliceobj)
+
+
+class Minc2Header(MincHeader):
+
+    @classmethod
+    def may_contain_header(klass, binaryblock):
+        return binaryblock[:4] == b'\211HDF'
 
 
 class Minc2Image(Minc1Image):
@@ -110,7 +151,8 @@ class Minc2Image(Minc1Image):
     the MINC file on load.
     '''
     # MINC2 does not do compressed whole files
-    _compressed_exts = ()
+    _compressed_suffixes = ()
+    header_class = Minc2Header
 
     @classmethod
     def from_file_map(klass, file_map):

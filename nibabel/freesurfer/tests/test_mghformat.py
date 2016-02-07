@@ -9,12 +9,14 @@
 '''Tests for mghformat reading writing'''
 
 import os
+import io
 
 import numpy as np
 
 from ...externals.six import BytesIO
-from .. import load, save, MGHImage
-from ..mghformat import MGHHeader, MGHError
+from .. import load, save
+from ...openers import ImageOpener
+from ..mghformat import MGHHeader, MGHError, MGHImage
 from ...tmpdirs import InTemporaryDirectory
 from ...fileholders import FileHolder
 
@@ -28,11 +30,13 @@ from ...testing import data_path
 
 from ...tests import test_spatialimages as tsi
 
+MGZ_FNAME = os.path.join(data_path, 'test.mgz')
+
 # sample voxel to ras matrix (mri_info --vox2ras)
 v2r = np.array([[1, 2, 3, -13], [2, 3, 1, -11.5],
                 [3, 1, 2, -11.5], [0, 0, 0, 1]], dtype=np.float32)
 # sample voxel to ras - tkr matrix (mri_info --vox2ras-tkr)
-v2rtkr = np.array([[-1.0, 0.0, 0.0,  1.5],
+v2rtkr = np.array([[-1.0, 0.0, 0.0, 1.5],
                    [0.0, 0.0, 1.0, -2.5],
                    [0.0, -1.0, 0.0, 2.0],
                    [0.0, 0.0, 0.0, 1.0]], dtype=np.float32)
@@ -43,11 +47,10 @@ def test_read_mgh():
     # mri_volsynth --dim 3 4 5 2 --vol test.mgz
     # --cdircos 1 2 3 --rdircos 2 3 1 --sdircos 3 1 2
     # mri_volsynth is a FreeSurfer command
-    mgz_path = os.path.join(data_path, 'test.mgz')
-    mgz = load(mgz_path)
+    mgz = load(MGZ_FNAME)
 
     # header
-    h = mgz.get_header()
+    h = mgz.header
     assert_equal(h['version'], 1)
     assert_equal(h['type'], 3)
     assert_equal(h['dof'], 0)
@@ -74,7 +77,7 @@ def test_write_mgh():
         save(img, 'tmpsave.mgz')
         # read from the tmp file and see if it checks out
         mgz = load('tmpsave.mgz')
-        h = mgz.get_header()
+        h = mgz.header
         dat = mgz.get_data()
         # Delete loaded image to allow file deletion by windows
         del mgz
@@ -101,7 +104,7 @@ def test_write_noaffine_mgh():
         save(img, 'tmpsave.mgz')
         # read from the tmp file and see if it checks out
         mgz = load('tmpsave.mgz')
-        h = mgz.get_header()
+        h = mgz.header
         # Delete loaded image to allow file deletion by windows
         del mgz
     # header
@@ -130,7 +133,7 @@ def bad_dtype_mgh():
     v = np.ones((7, 13, 3, 22)).astype(np.uint16)
     # form a MGHImage object using data
     # and the default affine matrix (Note the "None")
-    img = MGHImage(v, None)
+    MGHImage(v, None)
 
 
 def test_bad_dtype_mgh():
@@ -145,7 +148,7 @@ def test_filename_exts():
     # and the default affine matrix (Note the "None")
     img = MGHImage(v, None)
     # Check if these extensions allow round trip
-    for ext in ('.mgh', '.mgz', '.mgh.gz'):
+    for ext in ('.mgh', '.mgz'):
         with InTemporaryDirectory():
             fname = 'tmpname' + ext
             save(img, fname)
@@ -165,16 +168,15 @@ def test_header_updating():
     # Don't update the header information if the affine doesn't change.
     # Luckily the test.mgz dataset had a bad set of cosine vectors, so these
     # will be changed if the affine gets updated
-    mgz_path = os.path.join(data_path, 'test.mgz')
-    mgz = load(mgz_path)
-    hdr = mgz.get_header()
+    mgz = load(MGZ_FNAME)
+    hdr = mgz.header
     # Test against mri_info output
     exp_aff = np.loadtxt(BytesIO(b"""
     1.0000   2.0000   3.0000   -13.0000
     2.0000   3.0000   1.0000   -11.5000
     3.0000   1.0000   2.0000   -11.5000
     0.0000   0.0000   0.0000     1.0000"""))
-    assert_almost_equal(mgz.get_affine(), exp_aff, 6)
+    assert_almost_equal(mgz.affine, exp_aff, 6)
     assert_almost_equal(hdr.get_affine(), exp_aff, 6)
     # Test that initial wonky header elements have not changed
     assert_equal(hdr['delta'], 1)
@@ -182,7 +184,7 @@ def test_header_updating():
     # Save, reload, same thing
     img_fobj = BytesIO()
     mgz2 = _mgh_rt(mgz, img_fobj)
-    hdr2 = mgz2.get_header()
+    hdr2 = mgz2.header
     assert_almost_equal(hdr2.get_affine(), exp_aff, 6)
     assert_equal(hdr2['delta'], 1)
     # Change affine, change underlying header info
@@ -203,10 +205,10 @@ def test_cosine_order():
     aff = np.diag([2., 3, 4, 1])
     aff[0] = [2, 1, 0, 10]
     img = MGHImage(data, aff)
-    assert_almost_equal(img.get_affine(), aff, 6)
+    assert_almost_equal(img.affine, aff, 6)
     img_fobj = BytesIO()
     img2 = _mgh_rt(img, img_fobj)
-    hdr2 = img2.get_header()
+    hdr2 = img2.header
     RZS = aff[:3, :3]
     zooms = np.sqrt(np.sum(RZS ** 2, axis=0))
     assert_almost_equal(hdr2['Mdc'], (RZS / zooms).T)
@@ -230,7 +232,27 @@ def test_header_slope_inter():
     assert_equal(hdr.get_slope_inter(), (None, None))
 
 
-class TestMGHImage(tsi.TestSpatialImage):
+def test_mgh_load_fileobj():
+    # Checks the filename gets passed to array proxy
+    #
+    # This is a bit of an implementation detail, but the test is to make sure
+    # that we aren't passing ImageOpener objects to the array proxy, as these
+    # were confusing mmap on Python 3.  If there's some sensible reason not to
+    # pass the filename to the array proxy, please feel free to change this
+    # test.
+    img = MGHImage.load(MGZ_FNAME)
+    assert_equal(img.dataobj.file_like, MGZ_FNAME)
+    # Check fileobj also passed into dataobj
+    with ImageOpener(MGZ_FNAME) as fobj:
+        contents = fobj.read()
+    bio = io.BytesIO(contents)
+    fm = MGHImage.make_file_map(mapping=dict(image=bio))
+    img2 = MGHImage.from_file_map(fm)
+    assert_true(img2.dataobj.file_like is bio)
+    assert_array_equal(img.get_data(), img2.get_data())
+
+
+class TestMGHImage(tsi.TestSpatialImage, tsi.MmapImageMixin):
     """ Apply general image tests to MGHImage
     """
     image_class = MGHImage

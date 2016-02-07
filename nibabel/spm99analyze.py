@@ -6,7 +6,7 @@
 #   copyright and license terms.
 #
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
-''' Header reading functions for SPM version of analyze format '''
+''' Read / write access to SPM99 version of analyze image format '''
 import warnings
 import numpy as np
 
@@ -15,7 +15,10 @@ from .externals.six import BytesIO
 from .spatialimages import HeaderDataError, HeaderTypeError
 
 from .batteryrunners import Report
-from . import analyze # module import
+from . import analyze  # module import
+from .keywordonly import kw_only_meth
+from .optpkg import optional_package
+have_scipy = optional_package('scipy')[1]
 
 ''' Support subtle variations of SPM version of Analyze '''
 header_key_dtd = analyze.header_key_dtd
@@ -23,12 +26,12 @@ header_key_dtd = analyze.header_key_dtd
 image_dimension_dtd = analyze.image_dimension_dtd[:]
 image_dimension_dtd[
     image_dimension_dtd.index(('funused1', 'f4'))
-    ] = ('scl_slope', 'f4')
+] = ('scl_slope', 'f4')
 # originator text field used as image origin (translations)
 data_history_dtd = analyze.data_history_dtd[:]
 data_history_dtd[
     data_history_dtd.index(('originator', 'S10'))
-    ] = ('origin', 'i2', (5,))
+] = ('origin', 'i2', (5,))
 
 # Full header numpy dtype combined across sub-fields
 header_dtype = np.dtype(header_key_dtd +
@@ -53,13 +56,14 @@ class SpmAnalyzeHeader(analyze.AnalyzeHeader):
         return hdr_data
 
     def get_slope_inter(self):
-        ''' Get scalefactor and intercept 
+        ''' Get scalefactor and intercept
 
-        If scalefactor is 0.0 return None to indicate no scalefactor.  Intercept
-        is always None because SPM99 analyze cannot store intercepts.
+        If scalefactor is 0.0 return None to indicate no scalefactor.
+        Intercept is always None because SPM99 analyze cannot store intercepts.
         '''
         slope = self._structarr['scl_slope']
-        if slope == 0.0:
+        # Return invalid slopes as None
+        if np.isnan(slope) or slope in (0, -np.inf, np.inf):
             return None, None
         return slope, None
 
@@ -70,49 +74,39 @@ class SpmAnalyzeHeader(analyze.AnalyzeHeader):
         data is ``arr``, then the scaled image data will be ``(arr *
         slope) + inter``
 
-        Note that the SPM Analyze header can't save an intercept value,
-        and we raise an error for ``inter != 0``
+        The SPM Analyze header can't save an intercept value, and we raise an
+        error unless `inter` is None, NaN or 0
 
         Parameters
         ----------
         slope : None or float
-           If None, implies `slope` of 1.0, `inter` of 0.0 (i.e. no
-           scaling of the image data).  If `slope` is not, we ignore the
-           passed value of `inter`
+           If None, implies `slope` of NaN.  NaN is a signal to the image
+           writing routines to rescale on save.  0, Inf, -Inf are invalid and
+           cause a HeaderDataError
         inter : None or float, optional
-           intercept (dc offset).  If float, must be 0, because SPM99 cannot
-           store intercepts.
+           intercept. Must be None, NaN or 0, because SPM99 cannot store
+           intercepts.
         '''
         if slope is None:
-            slope = 0.0
+            slope = np.nan
+        if slope in (0, -np.inf, np.inf):
+            raise HeaderDataError('Slope cannot be 0 or infinite')
         self._structarr['scl_slope'] = slope
-        if inter is None or inter == 0:
+        if inter in (None, 0) or np.isnan(inter):
             return
         raise HeaderTypeError('Cannot set non-zero intercept '
                               'for SPM headers')
 
-    @classmethod
-    def _get_checks(klass):
-        checks = super(SpmAnalyzeHeader, klass)._get_checks()
-        return checks + (klass._chk_scale,)
-
-    @staticmethod
-    def _chk_scale(hdr, fix=False):
-        rep = Report(HeaderDataError)
-        scale = hdr['scl_slope']
-        if np.isfinite(scale):
-            return hdr, rep
-        rep.problem_level = 30
-        rep.problem_msg = ('scale slope is %s; should be finite'
-                           % scale)
-        if fix:
-            hdr['scl_slope'] = 1
-            rep.fix_msg = 'setting scalefactor "scl_slope" to 1'
-        return hdr, rep
-
 
 class Spm99AnalyzeHeader(SpmAnalyzeHeader):
-    ''' Adds origin functionality to base SPM header '''
+    ''' Class for SPM99 variant of basic Analyze header
+
+    SPM99 variant adds the following to basic Analyze format:
+
+    * voxel origin;
+    * slope scaling of data.
+    '''
+
     def get_origin_affine(self):
         ''' Get affine from header, using SPM origin field if sensible
 
@@ -154,10 +148,10 @@ class Spm99AnalyzeHeader(SpmAnalyzeHeader):
         origin = hdr['origin'][:3]
         dims = hdr['dim'][1:4]
         if (np.any(origin) and
-            np.all(origin > -dims) and np.all(origin < dims*2)):
-            origin = origin-1
+                np.all(origin > -dims) and np.all(origin < dims * 2)):
+            origin = origin - 1
         else:
-            origin = (dims-1) / 2.0
+            origin = (dims - 1) / 2.0
         aff = np.eye(4)
         aff[:3, :3] = np.diag(zooms)
         aff[:3, -1] = -origin * zooms
@@ -175,9 +169,9 @@ class Spm99AnalyzeHeader(SpmAnalyzeHeader):
         file.
 
         Nifti uses the space occupied by the SPM ``origin`` field for important
-        other information (the transform codes), so writing the origin will make
-        the header a confusing Nifti file.  If you work with both Analyze and
-        Nifti, you should probably avoid doing this.
+        other information (the transform codes), so writing the origin will
+        make the header a confusing Nifti file.  If you work with both Analyze
+        and Nifti, you should probably avoid doing this.
 
         Parameters
         ----------
@@ -229,7 +223,7 @@ class Spm99AnalyzeHeader(SpmAnalyzeHeader):
         origin = hdr['origin'][0:3]
         dims = hdr['dim'][1:4]
         if (not np.any(origin) or
-            (np.all(origin > -dims) and np.all(origin < dims*2))):
+                (np.all(origin > -dims) and np.all(origin < dims * 2))):
             return hdr, rep
         rep.problem_level = 20
         rep.problem_msg = 'very large origin values relative to dims'
@@ -239,14 +233,41 @@ class Spm99AnalyzeHeader(SpmAnalyzeHeader):
 
 
 class Spm99AnalyzeImage(analyze.AnalyzeImage):
+    """ Class for SPM99 variant of basic Analyze image
+    """
     header_class = Spm99AnalyzeHeader
     files_types = (('image', '.img'),
                    ('header', '.hdr'),
-                   ('mat','.mat'))
+                   ('mat', '.mat'))
+    has_affine = True
+    makeable = True
+    rw = have_scipy
 
     @classmethod
-    def from_file_map(klass, file_map):
-        ret = super(Spm99AnalyzeImage, klass).from_file_map(file_map)
+    @kw_only_meth(1)
+    def from_file_map(klass, file_map, mmap=True):
+        ''' class method to create image from mapping in `file_map ``
+
+        Parameters
+        ----------
+        file_map : dict
+            Mapping with (kay, value) pairs of (``file_type``, FileHolder
+            instance giving file-likes for each file needed for this image
+            type.
+        mmap : {True, False, 'c', 'r'}, optional, keyword only
+            `mmap` controls the use of numpy memory mapping for reading image
+            array data.  If False, do not try numpy ``memmap`` for data array.
+            If one of {'c', 'r'}, try numpy memmap with ``mode=mmap``.  A
+            `mmap` value of True gives the same behavior as ``mmap='c'``.  If
+            image data file cannot be memory-mapped, ignore `mmap` value and
+            read array from file.
+
+        Returns
+        -------
+        img : Spm99AnalyzeImage instance
+        '''
+        ret = super(Spm99AnalyzeImage, klass).from_file_map(file_map,
+                                                            mmap=mmap)
         try:
             matf = file_map['mat'].get_prepare_fileobj()
         except IOError:
@@ -258,14 +279,14 @@ class Spm99AnalyzeImage(analyze.AnalyzeImage):
             return ret
         import scipy.io as sio
         mats = sio.loadmat(BytesIO(contents))
-        if 'mat' in mats: # this overrides a 'M', and includes any flip
+        if 'mat' in mats:  # this overrides a 'M', and includes any flip
             mat = mats['mat']
             if mat.ndim > 2:
                 warnings.warn('More than one affine in "mat" matrix, '
                               'using first')
                 mat = mat[:, :, 0]
             ret._affine = mat
-        elif 'M' in mats: # the 'M' matrix does not include flips
+        elif 'M' in mats:  # the 'M' matrix does not include flips
             hdr = ret._header
             if hdr.default_x_flip:
                 ret._affine = np.dot(np.diag([-1, 1, 1, 1]), mats['M'])
@@ -275,7 +296,7 @@ class Spm99AnalyzeImage(analyze.AnalyzeImage):
             raise ValueError('mat file found but no "mat" or "M" in it')
         # Adjust for matlab 1,1,1 voxel origin
         to_111 = np.eye(4)
-        to_111[:3,3] = 1
+        to_111[:3, 3] = 1
         ret._affine = np.dot(ret._affine, to_111)
         return ret
 
@@ -304,7 +325,7 @@ class Spm99AnalyzeImage(analyze.AnalyzeImage):
             M = mat
         # Adjust for matlab 1,1,1 voxel origin
         from_111 = np.eye(4)
-        from_111[:3,3] = -1
+        from_111[:3, 3] = -1
         M = np.dot(M, from_111)
         mat = np.dot(mat, from_111)
         # use matlab 4 format to allow gzipped write without error

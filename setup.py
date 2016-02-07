@@ -12,17 +12,19 @@
 import os
 from os.path import join as pjoin
 import sys
+from functools import partial
 
 # BEFORE importing distutils, remove MANIFEST. distutils doesn't properly
 # update it when the contents of directories change.
-if os.path.exists('MANIFEST'): os.remove('MANIFEST')
+if os.path.exists('MANIFEST'):
+    os.remove('MANIFEST')
 
 # For some commands, use setuptools.
 if len(set(('develop', 'bdist_egg', 'bdist_rpm', 'bdist', 'bdist_dumb',
-            'install_egg_info', 'egg_info', 'easy_install',
-            )).intersection(sys.argv)) > 0:
+            'install_egg_info', 'egg_info', 'easy_install', 'bdist_wheel',
+            'bdist_mpkg')).intersection(sys.argv)) > 0:
     # setup_egg imports setuptools setup, thus monkeypatching distutils.
-    import setup_egg
+    import setup_egg  # noqa
 
 from distutils.core import setup
 
@@ -35,26 +37,30 @@ cmdclass = {'build_py': get_comrec_build('nibabel'),
 ver_file = os.path.join('nibabel', 'info.py')
 exec(open(ver_file).read())
 
-# Do dependency checking
-package_check('numpy', NUMPY_MIN_VERSION)
-custom_pydicom_messages = {'missing opt': 'Missing optional package "%s"'
-        ' provided by package "pydicom"'
-}
-package_check('dicom',
-        PYDICOM_MIN_VERSION,
-        optional=True,
-        messages = custom_pydicom_messages)
-extra_setuptools_args = {}
+# Prepare setuptools args
 if 'setuptools' in sys.modules:
     extra_setuptools_args = dict(
         tests_require=['nose'],
         test_suite='nose.collector',
         zip_safe=False,
-        extras_require = dict(
+        extras_require=dict(
             doc='Sphinx>=0.3',
-            test='nose>=0.10.1',
-            nicom = 'dicom>=' + PYDICOM_MIN_VERSION)
+            test='nose>=0.10.1'),
     )
+    pkg_chk = partial(package_check, setuptools_args = extra_setuptools_args)
+else:
+    extra_setuptools_args = {}
+    pkg_chk = package_check
+
+# Do dependency checking
+pkg_chk('numpy', NUMPY_MIN_VERSION)
+custom_pydicom_messages = {'missing opt': 'Missing optional package "%s"'
+        ' provided by package "pydicom"'
+}
+pkg_chk('dicom',
+        PYDICOM_MIN_VERSION,
+        optional='dicom',
+        messages = custom_pydicom_messages)
 
 def main(**extra_args):
     setup(name=NAME,

@@ -4,6 +4,7 @@ Most routines work round some numpy oddities in floating point precision and
 casting.  Others work round numpy casting to and from python ints
 """
 
+from numbers import Integral
 from platform import processor, machine
 
 import numpy as np
@@ -13,19 +14,27 @@ class CastingError(Exception):
     pass
 
 
+# Test for VC truncation when casting floats to uint64
+# Christoph Gohlke says this is so for MSVC <= 2010 because VC is using x87
+# instructions; see:
+# https://github.com/scipy/scipy/blob/99bb8411f6391d921cb3f4e56619291e91ddf43b/scipy/ndimage/tests/test_datatypes.py#L51
+_test_val = 2**63 + 2**11  # Should be exactly representable in float64
+TRUNC_UINT64 = np.float64(_test_val).astype(np.uint64) != _test_val
+
+
 def float_to_int(arr, int_type, nan2zero=True, infmax=False):
     """ Convert floating point array `arr` to type `int_type`
 
     * Rounds numbers to nearest integer
     * Clips values to prevent overflows when casting
-    * Converts NaN to 0 (for `nan2zero`==True
+    * Converts NaN to 0 (for `nan2zero` == True)
 
     Casting floats to integers is delicate because the result is undefined
     and platform specific for float values outside the range of `int_type`.
     Define ``shared_min`` to be the minimum value that can be exactly
     represented in both the float type of `arr` and `int_type`. Define
-    `shared_max` to be the equivalent maximum value.  To avoid undefined results
-    we threshold `arr` at ``shared_min`` and ``shared_max``.
+    `shared_max` to be the equivalent maximum value.  To avoid undefined
+    results we threshold `arr` at ``shared_min`` and ``shared_max``.
 
     Parameters
     ----------
@@ -40,8 +49,8 @@ def float_to_int(arr, int_type, nan2zero=True, infmax=False):
         In this last case, the resulting value is undefined.
     infmax : {False, True}
         If True, set np.inf values in `arr` to be `int_type` integer maximum
-        value, -np.inf as `int_type` integer minimum.  If False, set +/- infs to
-        be ``shared_min``, ``shared_max`` as defined above.  Therefore False
+        value, -np.inf as `int_type` integer minimum.  If False, set +/- infs
+        to be ``shared_min``, ``shared_max`` as defined above.  Therefore False
         gives faster conversion at the expense of infs that are further from
         infinity.
 
@@ -70,8 +79,8 @@ def float_to_int(arr, int_type, nan2zero=True, infmax=False):
     Hence we threshold at ``shared_min`` and ``shared_max`` to avoid casting to
     values that are undefined.
 
-    See: http://en.wikipedia.org/wiki/C99 . There are links to the C99 standard
-    from that page.
+    See: https://en.wikipedia.org/wiki/C99 . There are links to the C99
+    standard from that page.
     """
     arr = np.asarray(arr)
     flt_type = arr.dtype.type
@@ -85,7 +94,7 @@ def float_to_int(arr, int_type, nan2zero=True, infmax=False):
     else:
         nans = np.isnan(arr)
         seen_nans = np.any(nans)
-        if nan2zero == False and seen_nans:
+        if not nan2zero and seen_nans:
             raise CastingError('NaNs in array, nan2zero is False')
     iarr = np.clip(np.rint(arr), mn, mx).astype(int_type)
     if seen_nans:
@@ -102,12 +111,13 @@ def float_to_int(arr, int_type, nan2zero=True, infmax=False):
 # Cache range values
 _SHARED_RANGES = {}
 
+
 def shared_range(flt_type, int_type):
     """ Min and max in float type that are >=min, <=max in integer type
 
     This is not as easy as it sounds, because the float type may not be able to
-    exactly represent the max or min integer values, so we have to find the next
-    exactly representable floating point value to do the thresholding.
+    exactly represent the max or min integer values, so we have to find the
+    next exactly representable floating point value to do the thresholding.
 
     Parameters
     ----------
@@ -150,6 +160,8 @@ def shared_range(flt_type, int_type):
     mx = floor_exact(ii.max, flt_type)
     if mx == np.inf:
         mx = fi.max
+    elif TRUNC_UINT64 and int_type == np.uint64:
+        mx = min(mx, flt_type(2**63))
     _SHARED_RANGES[key] = (mn, mx)
     return mn, mx
 
@@ -160,7 +172,7 @@ def shared_range(flt_type, int_type):
 
 try:
     _float16 = np.float16
-except AttributeError: # float16 not present in np < 1.6
+except AttributeError:  # float16 not present in np < 1.6
     _float16 = None
 
 
@@ -198,12 +210,13 @@ def type_info(np_type):
 
     Raises
     ------
-    FloatingError : for floating point types we don't recognize
+    FloatingError
+        for floating point types we don't recognize
 
     Notes
     -----
     You might be thinking that ``np.finfo`` does this job, and it does, except
-    for PPC long doubles (http://projects.scipy.org/numpy/ticket/2077) and
+    for PPC long doubles (https://github.com/numpy/numpy/issues/2669) and
     float96 on Windows compiled with Mingw. This routine protects against such
     errors in ``np.finfo`` by only accepting values that we know are likely to
     be correct.
@@ -211,7 +224,7 @@ def type_info(np_type):
     dt = np.dtype(np_type)
     np_type = dt.type
     width = dt.itemsize
-    try: # integer type
+    try:  # integer type
         info = np.iinfo(dt)
     except ValueError:
         pass
@@ -238,31 +251,31 @@ def type_info(np_type):
     else:
         assert np_type is np.longdouble
         vals = (nmant, nexp, width)
-    if vals in ((112, 15, 16), # binary128
-                (info_64.nmant, info_64.nexp, 8), # float64
-                (63, 15, 12), (63, 15, 16)): # Intel extended 80
-        return ret # these are OK without modification
+    if vals in ((112, 15, 16),  # binary128
+                (info_64.nmant, info_64.nexp, 8),  # float64
+                (63, 15, 12), (63, 15, 16)):  # Intel extended 80
+        return ret  # these are OK without modification
     # The remaining types are longdoubles with bad finfo values.  Some we
     # correct, others we wait to hear of errors.
     # We start with float64 as basis
     ret = type_info(np.float64)
-    if vals in ((52, 15, 12), # windows float96
-                (52, 15, 16)): # windows float128?
+    if vals in ((52, 15, 12),  # windows float96
+                (52, 15, 16)):  # windows float128?
         # On windows 32 bit at least, float96 is Intel 80 storage but operating
         # at float64 precision. The finfo values give nexp == 15 (as for intel
         # 80) but in calculations nexp in fact appears to be 11 as for float64
         ret.update(dict(width=width))
         return ret
     # Oh dear, we don't recognize the type information.  Try some known types
-    # and then give up. At this stage we're expecting exotic longdouble or their
-    # complex equivalent.
-    if not np_type in (np.longdouble, np.longcomplex) or width not in (16, 32):
+    # and then give up. At this stage we're expecting exotic longdouble or
+    # their complex equivalent.
+    if np_type not in (np.longdouble, np.longcomplex) or width not in (16, 32):
         raise FloatingError('We had not expected type %s' % np_type)
     if (vals == (1, 1, 16) and on_powerpc() and
-        _check_maxexp(np.longdouble, 1024)):
+            _check_maxexp(np.longdouble, 1024)):
         # double pair on PPC.  The _check_nmant routine does not work for this
         # type, hence the powerpc platform check instead
-        ret.update(dict(nmant = 106, width=width))
+        ret.update(dict(nmant=106, width=width))
     elif (_check_nmant(np.longdouble, 52) and
           _check_maxexp(np.longdouble, 11)):
         # Got float64 despite everything
@@ -273,18 +286,18 @@ def type_info(np_type):
         # seems to break here too, so we need to use np.longdouble and
         # complexify
         two = np.longdouble(2)
-        # See: http://matthew-brett.github.com/pydagogue/floating_point.html
+        # See: https://matthew-brett.github.io/pydagogue/floating_point.html
         max_val = (two ** 113 - 1) / (two ** 112) * two ** 16383
         if np_type is np.longcomplex:
             max_val += 0j
-        ret = dict(min = -max_val,
-                   max= max_val,
-                   nmant = 112,
-                   nexp = 15,
-                   minexp = -16382,
-                   maxexp = 16384,
-                   width = width)
-    else: # don't recognize the type
+        ret = dict(min=-max_val,
+                   max=max_val,
+                   nmant=112,
+                   nexp=15,
+                   minexp=-16382,
+                   maxexp=16384,
+                   width=width)
+    else:  # don't recognize the type
         raise FloatingError('We had not expected long double type %s '
                             'with info %s' % (np_type, info))
     return ret
@@ -293,8 +306,8 @@ def type_info(np_type):
 def _check_nmant(np_type, nmant):
     """ True if fp type `np_type` seems to have `nmant` significand digits
 
-    Note 'digits' does not include implicit digits.  And in fact if there are no
-    implicit digits, the `nmant` number is one less than the actual digits.
+    Note 'digits' does not include implicit digits.  And in fact if there are
+    no implicit digits, the `nmant` number is one less than the actual digits.
     Assumes base 2 representation.
 
     Parameters
@@ -311,7 +324,7 @@ def _check_nmant(np_type, nmant):
         otherwise
     """
     np_type = np.dtype(np_type).type
-    max_contig = np_type(2 ** (nmant + 1)) # maximum of contiguous integers
+    max_contig = np_type(2 ** (nmant + 1))  # maximum of contiguous integers
     tests = max_contig + np.array([-2, -1, 0, 1, 2], dtype=np_type)
     return np.all(tests - max_contig == [-2, -1, 0, 0, 2])
 
@@ -338,7 +351,7 @@ def _check_maxexp(np_type, maxexp):
     """
     dt = np.dtype(np_type)
     np_type = dt.type
-    two = np_type(2).reshape((1,)) # to avoid upcasting
+    two = np_type(2).reshape((1,))  # to avoid upcasting
     return (np.isfinite(two ** (maxexp - 1)) and
             not np.isfinite(two ** maxexp))
 
@@ -349,8 +362,8 @@ def as_int(x, check=True):
     This is useful because the numpy int(val) mechanism is broken for large
     values in np.longdouble.
 
-    It is also useful to work around a numpy 1.4.1 bug in conversion of uints to
-    python ints.
+    It is also useful to work around a numpy 1.4.1 bug in conversion of uints
+    to python ints.
 
     This routine will still raise an OverflowError for values that are outside
     the range of float64.
@@ -394,8 +407,8 @@ def as_int(x, check=True):
         raise FloatingError('Not an integer: %s' % x)
     if not fx.dtype.type == np.longdouble:
         return int(x)
-    # Subtract float64 chunks until we have all of the number. If the int is too
-    # large, it will overflow
+    # Subtract float64 chunks until we have all of the number. If the int is
+    # too large, it will overflow
     ret = 0
     while fx != 0:
         f64 = np.float64(fx)
@@ -426,12 +439,12 @@ def int_to_float(val, flt_type):
     f : numpy scalar
         of type `flt_type`
     """
-    if not flt_type is np.longdouble:
+    if flt_type is not np.longdouble:
         return flt_type(val)
     # The following works around a nasty numpy 1.4.1 bug such that:
     # >>> int(np.uint32(2**32-1)
     # -1
-    if not isinstance(val, int):
+    if not isinstance(val, Integral):
         val = int(str(val))
     faval = np.longdouble(0)
     while val != 0:
@@ -485,7 +498,7 @@ def floor_exact(val, flt_type):
     val = int(val)
     flt_type = np.dtype(flt_type).type
     sign = 1 if val > 0 else -1
-    try: # int_to_float deals with longdouble safely
+    try:  # int_to_float deals with longdouble safely
         fval = int_to_float(val, flt_type)
     except OverflowError:
         return sign * np.inf
@@ -493,7 +506,7 @@ def floor_exact(val, flt_type):
         return fval
     info = type_info(flt_type)
     diff = val - as_int(fval)
-    if diff >= 0: # floating point value <= val
+    if diff >= 0:  # floating point value <= val
         return fval
     # Float casting made the value go up
     biggest_gap = 2**(floor_log2(val) - info['nmant'])
@@ -589,7 +602,7 @@ def int_abs(arr):
 def floor_log2(x):
     """ floor of log2 of abs(`x`)
 
-    Embarrassingly, from http://en.wikipedia.org/wiki/Binary_logarithm
+    Embarrassingly, from https://en.wikipedia.org/wiki/Binary_logarithm
 
     Parameters
     ----------
@@ -614,7 +627,7 @@ def floor_log2(x):
     ip = 0
     rem = abs(x)
     if rem > 1:
-        while rem>=2:
+        while rem >= 2:
             ip += 1
             rem //= 2
         return ip
@@ -651,7 +664,7 @@ def best_float():
     except FloatingError:
         return np.float64
     if (long_info['nmant'] > type_info(np.float64)['nmant'] and
-        machine() != 'sparc64'): # sparc has crazy-slow float128
+            machine() != 'sparc64'):  # sparc has crazy-slow float128
         return np.longdouble
     return np.float64
 
@@ -691,14 +704,14 @@ def ok_floats():
 
     Remove longdouble if it has no higher precision than float64
     """
-    floats = np.sctypes['float']
+    # copy float list so we don't change the numpy global
+    floats = np.sctypes['float'][:]
     if best_float() != np.longdouble and np.longdouble in floats:
         floats.remove(np.longdouble)
-    return sorted(floats, key=lambda f : type_info(f)['nmant'])
+    return sorted(floats, key=lambda f: type_info(f)['nmant'])
 
 
 OK_FLOATS = ok_floats()
-
 
 
 def able_int_type(values):
@@ -759,8 +772,8 @@ def ulp(val=np.float64(1.0)):
     The wikipedia article on machine epsilon points out that the term *epsilon*
     can be used in the sense of a unit in the last place (ULP), or as the
     maximum relative rounding error.  The MATLAB ``eps`` function uses the ULP
-    meaning, but this function is ``ulp`` rather than ``eps`` to avoid confusion
-    between different meanings of *eps*.
+    meaning, but this function is ``ulp`` rather than ``eps`` to avoid
+    confusion between different meanings of *eps*.
     """
     val = np.array(val)
     if not np.isfinite(val):
@@ -770,7 +783,7 @@ def ulp(val=np.float64(1.0)):
     aval = np.abs(val)
     info = type_info(val.dtype)
     fl2 = floor_log2(aval)
-    if fl2 is None or fl2 < info['minexp']: # subnormal
+    if fl2 is None or fl2 < info['minexp']:  # subnormal
         fl2 = info['minexp']
     # 'nmant' value does not include implicit first bit
     return 2**(fl2 - info['nmant'])

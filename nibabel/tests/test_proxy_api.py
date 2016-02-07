@@ -1,10 +1,20 @@
+# emacs: -*- mode: python-mode; py-indent-offset: 4; indent-tabs-mode: nil -*-
+# vi: set ft=python sts=4 ts=4 sw=4 et:
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
+#
+#   See COPYING file distributed along with the NiBabel package for the
+#   copyright and license terms.
+#
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
 """ Validate image proxy API
 
 Minimum array proxy API is:
 
-* read only shape attribute / property
-* read only is_proxy attribute / property
-* returns array from np.asarray(prox)
+* read only ``shape`` property
+* read only ``is_proxy`` property set to True
+* returns array from ``np.asarray(prox)``
+* returns array slice from ``prox[<slice_spec>]`` where ``<slice_spec>`` is any
+  non-fancy slice specification.
 
 And:
 
@@ -38,8 +48,9 @@ from .. import minc2
 from ..optpkg import optional_package
 h5py, have_h5py, _ = optional_package('h5py')
 from .. import ecat
+from .. import parrec
 
-from ..arrayproxy import ArrayProxy
+from ..arrayproxy import ArrayProxy, is_proxy
 
 from nose import SkipTest
 from nose.tools import (assert_true, assert_false, assert_raises,
@@ -52,6 +63,25 @@ from ..testing import data_path as DATA_PATH
 from ..tmpdirs import InTemporaryDirectory
 
 from .test_api_validators import ValidateAPI
+from .test_parrec import EG_REC, VARY_REC
+
+
+def _some_slicers(shape):
+    ndim = len(shape)
+    slicers = np.eye(ndim).astype(np.int).astype(object)
+    slicers[slicers == 0] = slice(None)
+    for i in range(ndim):
+        if i % 2:
+            slicers[i, i] = -1
+        elif shape[i] < 2:  # some proxy examples have length 1 axes
+            slicers[i, i] = 0
+    # Add a newaxis to keep us on our toes
+    no_pos = ndim // 2
+    slicers = np.hstack((slicers[:, :no_pos],
+                         np.empty((ndim, 1)),
+                         slicers[:, no_pos:]))
+    slicers[:, no_pos] = None
+    return [tuple(s) for s in slicers]
 
 
 class _TestProxyAPI(ValidateAPI):
@@ -81,6 +111,8 @@ class _TestProxyAPI(ValidateAPI):
         # Check shape
         prox, fio, hdr = pmaker()
         assert_true(prox.is_proxy)
+        assert_true(is_proxy(prox))
+        assert_false(is_proxy(np.arange(10)))
         # Read only
         assert_raises(AttributeError, setattr, prox, 'is_proxy', False)
 
@@ -115,8 +147,16 @@ class _TestProxyAPI(ValidateAPI):
         if isinstance(fio, string_types):
             return
         assert_array_equal(prox, params['arr_out'])
-        fio.read() # move to end of file
+        fio.read()  # move to end of file
         assert_array_equal(prox, params['arr_out'])
+
+    def validate_proxy_slicing(self, pmaker, params):
+        # Confirm that proxy object can be sliced correctly
+        arr = params['arr_out']
+        shape = arr.shape
+        prox, fio, hdr = pmaker()
+        for sliceobj in _some_slicers(shape):
+            assert_array_equal(arr[sliceobj], prox[sliceobj])
 
 
 class TestAnalyzeProxyAPI(_TestProxyAPI):
@@ -170,10 +210,10 @@ class TestAnalyzeProxyAPI(_TestProxyAPI):
                             hdr.set_data_shape(shape)
                             if self.settable_offset:
                                 hdr.set_data_offset(offset)
-                            if (slope, inter) == (1, 0): # No scaling applied
+                            if (slope, inter) == (1, 0):  # No scaling applied
                                 # dtype from array
                                 dtype_out = dtype
-                            else: # scaling or offset applied
+                            else:  # scaling or offset applied
                                 # out dtype predictable from apply_read_scaling
                                 # and datatypes of slope, inter
                                 hdr.set_slope_inter(slope, inter)
@@ -182,6 +222,7 @@ class TestAnalyzeProxyAPI(_TestProxyAPI):
                                                          1. if s is None else s,
                                                          0. if i is None else i)
                                 dtype_out = tmp.dtype.type
+
                             def sio_func():
                                 fio = BytesIO()
                                 fio.truncate(0)
@@ -194,18 +235,19 @@ class TestAnalyzeProxyAPI(_TestProxyAPI):
                                         fio,
                                         new_hdr)
                             params = dict(
-                                dtype = dtype,
-                                dtype_out = dtype_out,
-                                arr = arr.copy(),
-                                arr_out = arr * slope + inter,
-                                shape = shape,
-                                offset = offset,
-                                slope = slope,
-                                inter = inter)
+                                dtype=dtype,
+                                dtype_out=dtype_out,
+                                arr=arr.copy(),
+                                arr_out=arr * slope + inter,
+                                shape=shape,
+                                offset=offset,
+                                slope=slope,
+                                inter=inter)
                             yield sio_func, params
                             # Same with filenames
                             with InTemporaryDirectory():
                                 fname = 'data.bin'
+
                                 def fname_func():
                                     with open(fname, 'wb') as fio:
                                         fio.seek(offset)
@@ -256,7 +298,7 @@ class TestNifti1ProxyAPI(TestSpm99AnalyzeProxyAPI):
 
 class TestMGHAPI(TestAnalyzeProxyAPI):
     header_class = MGHHeader
-    shapes = ((2, 3, 4), (2, 3, 4, 5)) # MGH can only do >= 3D
+    shapes = ((2, 3, 4), (2, 3, 4, 5))  # MGH can only do >= 3D
     has_slope = False
     has_inter = False
     settable_offset = False
@@ -268,7 +310,10 @@ class TestMinc1API(_TestProxyAPI):
     file_class = minc1.Minc1File
     eg_fname = 'tiny.mnc'
     eg_shape = (10, 20, 20)
-    opener = netcdf_file
+
+    @staticmethod
+    def opener(f):
+        return netcdf_file(f, mode='r')
 
     def obj_params(self):
         """ Iterator returning (``proxy_creator``, ``proxy_params``) pairs
@@ -285,6 +330,7 @@ class TestMinc1API(_TestProxyAPI):
         eg_path = pjoin(DATA_PATH, self.eg_fname)
         arr_out = self.file_class(
             self.opener(eg_path)).get_scaled_data()
+
         def eg_func():
             mf = self.file_class(self.opener(eg_path))
             prox = minc1.MincImageArrayProxy(mf)
@@ -303,7 +349,10 @@ if have_h5py:
         file_class = minc2.Minc2File
         eg_fname = 'small.mnc'
         eg_shape = (18, 28, 29)
-        opener = h5py.File
+
+        @staticmethod
+        def opener(f):
+            return h5py.File(f, mode='r')
 
 
 class TestEcatAPI(_TestProxyAPI):
@@ -314,6 +363,7 @@ class TestEcatAPI(_TestProxyAPI):
         eg_path = pjoin(DATA_PATH, self.eg_fname)
         img = ecat.load(eg_path)
         arr_out = img.get_data()
+
         def eg_func():
             img = ecat.load(eg_path)
             sh = img.get_subheaders()
@@ -327,3 +377,26 @@ class TestEcatAPI(_TestProxyAPI):
 
     def validate_header_isolated(self, pmaker, params):
         raise SkipTest('ECAT header does not support dtype get')
+
+
+class TestPARRECAPI(_TestProxyAPI):
+
+    def _func_dict(self, rec_name):
+        img = parrec.load(rec_name)
+        arr_out = img.get_data()
+
+        def eg_func():
+            img = parrec.load(rec_name)
+            prox = parrec.PARRECArrayProxy(rec_name,
+                                           img.header,
+                                           scaling='dv')
+            fobj = open(rec_name, 'rb')
+            return prox, fobj, img.header
+        return (eg_func,
+                dict(shape=img.shape,
+                     dtype_out=np.float64,
+                     arr_out=arr_out))
+
+    def obj_params(self):
+        yield self._func_dict(EG_REC)
+        yield self._func_dict(VARY_REC)

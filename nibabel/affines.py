@@ -5,6 +5,8 @@
 
 import numpy as np
 
+from .externals.six.moves import reduce
+
 
 def apply_affine(aff, pts):
     """ Apply affine matrix `aff` to points `pts`
@@ -13,15 +15,15 @@ def apply_affine(aff, pts):
     coordinate dimension of `pts` should be the last.
 
     For the 3D case, `aff` will be shape (4,4) and `pts` will have final axis
-    length 3 - maybe it will just be N by 3. The return value is the transformed
-    points, in this case::
+    length 3 - maybe it will just be N by 3. The return value is the
+    transformed points, in this case::
 
         res = np.dot(aff[:3,:3], pts.T) + aff[:3,3:4]
         transformed_pts = res.T
 
-    Notice though, that this routine is more general, in that `aff` can have any
-    shape (N,N), and `pts` can have any shape, as long as the last dimension is
-    for the coordinates, and is therefore length N-1.
+    This routine is more general than 3D, in that `aff` can have any shape
+    (N,N), and `pts` can have any shape, as long as the last dimension is for
+    the coordinates, and is therefore length N-1.
 
     Parameters
     ----------
@@ -29,8 +31,8 @@ def apply_affine(aff, pts):
         Homogenous affine, for 3D points, will be 4 by 4. Contrary to first
         appearance, the affine will be applied on the left of `pts`.
     pts : (..., N-1) array-like
-        Points, where the last dimension contains the coordinates of each point.
-        For 3D, the last dimension will be length 3.
+        Points, where the last dimension contains the coordinates of each
+        point.  For 3D, the last dimension will be length 3.
 
     Returns
     -------
@@ -70,9 +72,9 @@ def apply_affine(aff, pts):
     shape = pts.shape
     pts = pts.reshape((-1, shape[-1]))
     # rzs == rotations, zooms, shears
-    rzs = aff[:-1,:-1]
-    trans = aff[:-1,-1]
-    res = np.dot(pts, rzs.T) + trans[None,:]
+    rzs = aff[:-1, :-1]
+    trans = aff[:-1, -1]
+    res = np.dot(pts, rzs.T) + trans[None, :]
     return res.reshape(shape)
 
 
@@ -88,8 +90,8 @@ def to_matvec(transform):
         NxM transform matrix in homogeneous coordinates representing an affine
         transformation from an (N-1)-dimensional space to an (M-1)-dimensional
         space. An example is a 4x4 transform representing rotations and
-        translations in 3 dimensions. A 4x3 matrix can represent a 2-dimensional
-        plane embedded in 3 dimensional space.
+        translations in 3 dimensions. A 4x3 matrix can represent a
+        2-dimensional plane embedded in 3 dimensional space.
 
     Returns
     -------
@@ -122,8 +124,8 @@ def to_matvec(transform):
 def from_matvec(matrix, vector=None):
     """ Combine a matrix and vector into an homogeneous affine
 
-    Combine a rotation / scaling / shearing matrix and translation vector into a
-    transform in homogeneous coordinates.
+    Combine a rotation / scaling / shearing matrix and translation vector into
+    a transform in homogeneous coordinates.
 
     Parameters
     ----------
@@ -161,10 +163,10 @@ def from_matvec(matrix, vector=None):
     """
     matrix = np.asarray(matrix)
     nin, nout = matrix.shape
-    t = np.zeros((nin+1,nout+1), matrix.dtype)
+    t = np.zeros((nin + 1, nout + 1), matrix.dtype)
     t[0:nin, 0:nout] = matrix
     t[nin, nout] = 1.
-    if not vector is None:
+    if vector is not None:
         t[0:nin, nout] = vector
     return t
 
@@ -173,8 +175,8 @@ def append_diag(aff, steps, starts=()):
     """ Add diagonal elements `steps` and translations `starts` to affine
 
     Typical use is in expanding 4x4 affines to larger dimensions.  Nipy is the
-    main consumer because it uses NxM affines, whereas we generally only use 4x4
-    affines; the routine is here for convenience.
+    main consumer because it uses NxM affines, whereas we generally only use
+    4x4 affines; the routine is here for convenience.
 
     Parameters
     ----------
@@ -212,16 +214,36 @@ def append_diag(aff, steps, starts=()):
         starts = np.zeros(n_steps, dtype=steps.dtype)
     elif len(starts) != n_steps:
         raise ValueError('Steps should have same length as starts')
-    old_n_out, old_n_in = aff.shape[0]-1, aff.shape[1]-1
+    old_n_out, old_n_in = aff.shape[0] - 1, aff.shape[1] - 1
     # make new affine
     aff_plus = np.zeros((old_n_out + n_steps + 1,
                          old_n_in + n_steps + 1), dtype=aff.dtype)
     # Get stuff from old affine
-    aff_plus[:old_n_out,:old_n_in] = aff[:old_n_out, :old_n_in]
-    aff_plus[:old_n_out,-1] = aff[:old_n_out,-1]
+    aff_plus[:old_n_out, :old_n_in] = aff[:old_n_out, :old_n_in]
+    aff_plus[:old_n_out, -1] = aff[:old_n_out, -1]
     # Add new diagonal elements
     for i, el in enumerate(steps):
-        aff_plus[old_n_out+i, old_n_in+i] = el
+        aff_plus[old_n_out + i, old_n_in + i] = el
     # Add translations for new affine, plus last 1
-    aff_plus[old_n_out:,-1] = list(starts) + [1]
+    aff_plus[old_n_out:, -1] = list(starts) + [1]
     return aff_plus
+
+
+def dot_reduce(*args):
+    """ Apply numpy dot product function from right to left on arrays
+
+    For passed arrays :math:`A, B, C, ... Z` returns :math:`A \dot B \dot C ...
+    \dot Z` where "." is the numpy array dot product.
+
+    Parameters
+    ----------
+    \*\*args : arrays
+        Arrays that can be passed to numpy ``dot`` function
+
+    Returns
+    -------
+    dot_product : array
+        If there are N arguments, result of ``arg[0].dot(arg[1].dot(arg[2].dot
+        ...  arg[N-2].dot(arg[N-1])))...``
+    """
+    return reduce(lambda x, y: np.dot(y, x), args[::-1])

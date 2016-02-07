@@ -6,7 +6,7 @@
 #   copyright and license terms.
 #
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
-''' Header and image for the basic Mayo Analyze format
+''' Read / write access to the basic Mayo Analyze format
 
 ===========================
  The Analyze header format
@@ -46,13 +46,13 @@ diagonal affines), and cannot do integer scaling.
 The inability to store affines means that we have to guess what orientation the
 image has.  Most Analyze images are stored on disk in (fastest-changing to
 slowest-changing) R->L, P->A and I->S order.  That is, the first voxel is the
-rightmost, most posterior and most inferior voxel location in the image, and the
-next voxel is one voxel towards the left of the image.
+rightmost, most posterior and most inferior voxel location in the image, and
+the next voxel is one voxel towards the left of the image.
 
 Most people refer to this disk storage format as 'radiological', on the basis
 that, if you load up the data as an array ``img_arr`` where the first axis is
-the fastest changing, then take a slice in the I->S axis - ``img_arr[:,:,10]`` -
-then the right part of the brain will be on the left of your displayed slice.
+the fastest changing, then take a slice in the I->S axis - ``img_arr[:,:,10]``
+- then the right part of the brain will be on the left of your displayed slice.
 Radiologists like looking at images where the left of the brain is on the right
 side of the image.
 
@@ -60,9 +60,9 @@ Conversely, if the image has the voxels stored with the left voxels first -
 L->R, P->A, I->S, then this would be 'neurological' format.  Neurologists like
 looking at images where the left side of the brain is on the left of the image.
 
-When we are guessing at an affine for Analyze, this translates to the problem of
-whether the affine should consider proceeding within the data down an X line as
-being from left to right, or right to left.
+When we are guessing at an affine for Analyze, this translates to the problem
+of whether the affine should consider proceeding within the data down an X line
+as being from left to right, or right to left.
 
 By default we assume that the image is stored in R->L format.  We encode this
 choice in the ``default_x_flip`` flag that can be True or False.  True means
@@ -81,20 +81,21 @@ zooms, in particular, negative X zooms.  We did not do this because the image
 can be loaded with and without a default flip, so the saved zoom will not
 constrain the affine.
 '''
-import sys
 
 import numpy as np
 
 from .volumeutils import (native_code, swapped_code, make_dt_codes,
                           shape_zoom_affine, array_from_file, seek_tell,
                           apply_read_scaling)
-from .arraywriters import make_array_writer, get_slope_inter, WriterError
+from .arraywriters import (make_array_writer, get_slope_inter, WriterError,
+                           ArrayWriter)
 from .wrapstruct import LabeledWrapStruct
 from .spatialimages import (HeaderDataError, HeaderTypeError,
                             SpatialImage)
 from .fileholders import copy_file_map
 from .batteryrunners import Report
 from .arrayproxy import ArrayProxy
+from .keywordonly import kw_only_meth
 
 # Sub-parts of standard analyze header from
 # Mayo dbh.h file
@@ -106,7 +107,7 @@ header_key_dtd = [
     ('session_error', 'i2'),
     ('regular', 'S1'),
     ('hkey_un0', 'S1')
-    ]
+]
 image_dimension_dtd = [
     ('dim', 'i2', (8,)),
     ('vox_units', 'S4'),
@@ -126,7 +127,7 @@ image_dimension_dtd = [
     ('verified', 'i4'),
     ('glmax', 'i4'),
     ('glmin', 'i4')
-    ]
+]
 data_history_dtd = [
     ('descrip', 'S80'),
     ('aux_file', 'S24'),
@@ -146,24 +147,24 @@ data_history_dtd = [
     ('omin', 'i4'),
     ('smax', 'i4'),
     ('smin', 'i4')
-    ]
+]
 
 # Full header numpy dtype combined across sub-fields
 header_dtype = np.dtype(header_key_dtd + image_dimension_dtd +
                         data_history_dtd)
 
-_dtdefs = ( # code, conversion function, equivalent dtype, aliases
+_dtdefs = (  # code, conversion function, equivalent dtype, aliases
     (0, 'none', np.void),
-    (1, 'binary', np.void), # 1 bit per voxel, needs thought
+    (1, 'binary', np.void),  # 1 bit per voxel, needs thought
     (2, 'uint8', np.uint8),
     (4, 'int16', np.int16),
     (8, 'int32', np.int32),
     (16, 'float32', np.float32),
-    (32, 'complex64', np.complex64), # numpy complex format?
+    (32, 'complex64', np.complex64),  # numpy complex format?
     (64, 'float64', np.float64),
-    (128, 'RGB', np.dtype([('R','u1'),
-                  ('G', 'u1'),
-                  ('B', 'u1')])),
+    (128, 'RGB', np.dtype([('R', 'u1'),
+                           ('G', 'u1'),
+                           ('B', 'u1')])),
     (255, 'all', np.void))
 
 # Make full code alias bank, including dtype column
@@ -317,7 +318,7 @@ class AnalyzeHeader(LabeledWrapStruct):
         >>> AnalyzeHeader.guessed_endian(hdr_data) == native_code
         True
 
-        This is overridden by the ``dim``[0] value though:
+        This is overridden by the ``dim[0]`` value though:
 
         >>> hdr_data['sizeof_hdr'] = 1543569408
         >>> hdr_data['dim'][0] = 1
@@ -342,7 +343,7 @@ class AnalyzeHeader(LabeledWrapStruct):
         hdr_data['dim'] = 1
         hdr_data['dim'][0] = 0
         hdr_data['pixdim'] = 1
-        hdr_data['datatype'] = 16 # float32
+        hdr_data['datatype'] = 16  # float32
         hdr_data['bitpix'] = 32
         return hdr_data
 
@@ -373,26 +374,23 @@ class AnalyzeHeader(LabeledWrapStruct):
         obj = klass(check=check)
         if header is None:
             return obj
-        try: # check if there is a specific conversion routine
+        if hasattr(header, 'as_analyze_map'):
+            # header is convertible from a field mapping
             mapping = header.as_analyze_map()
-        except AttributeError:
-            # most basic conversion
-            obj.set_data_dtype(header.get_data_dtype())
-            obj.set_data_shape(header.get_data_shape())
-            obj.set_zooms(header.get_zooms())
-            return obj
-        # header is convertible from a field mapping
-        for key, value in mapping.items():
-            try:
-                obj[key] = value
-            except (ValueError, KeyError):
-                # the presence of the mapping certifies the fields as
-                # being of the same meaning as for Analyze types
-                pass
-        # set any fields etc that are specific to this format (overriden by
-        # sub-classes)
-        obj._set_format_specifics()
-        # Check for unsupported datatypes
+            for key in mapping:
+                try:
+                    obj[key] = mapping[key]
+                except (ValueError, KeyError):
+                    # the presence of the mapping certifies the fields as being
+                    # of the same meaning as for Analyze types, so we can
+                    # safely discard fields with names not known to this header
+                    # type on the basis they are from the wrong Analyze dialect
+                    pass
+            # set any fields etc that are specific to this format (overriden by
+            # sub-classes)
+            obj._clean_after_mapping()
+        # Fallback basic conversion always done.
+        # More specific warning for unsupported datatypes
         orig_code = header.get_data_dtype()
         try:
             obj.set_data_dtype(orig_code)
@@ -402,13 +400,32 @@ class AnalyzeHeader(LabeledWrapStruct):
                                   % (header.__class__,
                                      header.get_value_label('datatype'),
                                      klass))
+        obj.set_data_dtype(header.get_data_dtype())
+        obj.set_data_shape(header.get_data_shape())
+        obj.set_zooms(header.get_zooms())
         if check:
             obj.check_fix()
         return obj
 
-    def _set_format_specifics(self):
-        ''' Utility routine to set format specific header stuff
+    def _clean_after_mapping(self):
+        ''' Set format-specific stuff after converting header from mapping
+
+        This routine cleans up Analyze-type headers that have had their fields
+        set from an Analyze map returned by the ``as_analyze_map`` method.
+        Nifti 1 / 2, SPM Analyze, Analyze are all Analyze-type headers.
+        Because this map can set fields that are illegal for particular
+        subtypes of the Analyze header, this routine cleans these up before the
+        resulting header is checked and returned.
+
+        For example, a Nifti1 single (``.nii``) header has magic "n+1".
+        Passing the nifti single header for conversion to a Nifti1Pair header
+        using the ``as_analyze_map`` method will by default set the header
+        magic to "n+1", when it should be "ni1" for the pair header.  This
+        method is for that kind of case - so the specific header can set fields
+        like magic correctly, even though the mapping has given a wrong value.
         '''
+        # All current Nifti etc fields that are present in the Analyze header
+        # have the same meaning as they do for Analyze.
         pass
 
     def raw_data_from_fileobj(self, fileobj):
@@ -463,12 +480,12 @@ class AnalyzeHeader(LabeledWrapStruct):
         # Upcast as necessary for big slopes, intercepts
         return apply_read_scaling(data, slope, inter)
 
-    def data_to_fileobj(self, data, fileobj):
-        ''' Write `data` to `fileobj`, maybe modifying `self`
+    def data_to_fileobj(self, data, fileobj, rescale=True):
+        ''' Write `data` to `fileobj`, maybe rescaling data, modifying `self`
 
         In writing the data, we match the header to the written data, by
-        setting the header scaling factors.  Thus we modify `self` in
-        the process of writing the data.
+        setting the header scaling factors, iff `rescale` is True.  Thus we
+        modify `self` in the process of writing the data.
 
         Parameters
         ----------
@@ -477,6 +494,10 @@ class AnalyzeHeader(LabeledWrapStruct):
         fileobj : file-like object
            Object with file interface, implementing ``write`` and
            ``seek``
+        rescale : {True, False}, optional
+            Whether to try and rescale data to match output dtype specified by
+            header. If True and scaling needed and header cannot scale, then
+            raise ``HeaderTypeError``.
 
         Examples
         --------
@@ -497,13 +518,16 @@ class AnalyzeHeader(LabeledWrapStruct):
             raise HeaderDataError('Data should be shape (%s)' %
                                   ', '.join(str(s) for s in shape))
         out_dtype = self.get_data_dtype()
-        try:
-            arr_writer = make_array_writer(data,
-                                           out_dtype,
-                                           self.has_data_slope,
-                                           self.has_data_intercept)
-        except WriterError as e:
-            raise HeaderTypeError(str(e))
+        if rescale:
+            try:
+                arr_writer = make_array_writer(data,
+                                               out_dtype,
+                                               self.has_data_slope,
+                                               self.has_data_intercept)
+            except WriterError as e:
+                raise HeaderTypeError(str(e))
+        else:
+            arr_writer = ArrayWriter(data, out_dtype, check_scaling=False)
         seek_tell(fileobj, self.get_data_offset())
         arr_writer.to_fileobj(fileobj)
         self.set_slope_inter(*get_slope_inter(arr_writer))
@@ -542,16 +566,22 @@ class AnalyzeHeader(LabeledWrapStruct):
            ...
         HeaderDataError: data dtype "<type 'numpy.void'>" known but not supported
         '''
-        try:
-            code = self._data_type_codes[datatype]
-        except KeyError:
-            raise HeaderDataError(
-                'data dtype "%s" not recognized' % datatype)
+        dt = datatype
+        if dt not in self._data_type_codes:
+            try:
+                dt = np.dtype(dt)
+            except TypeError:
+                raise HeaderDataError(
+                    'data dtype "{0}" not recognized'.format(datatype))
+            if dt not in self._data_type_codes:
+                raise HeaderDataError(
+                    'data dtype "{0}" not supported'.format(datatype))
+        code = self._data_type_codes[dt]
         dtype = self._data_type_codes.dtype[code]
         # test for void, being careful of user-defined types
         if dtype.type is np.void and not dtype.fields:
             raise HeaderDataError(
-                'data dtype "%s" known but not supported' % datatype)
+                'data dtype "{0}" known but not supported'.format(datatype))
         self._structarr['datatype'] = code
         self._structarr['bitpix'] = dtype.itemsize * 8
 
@@ -576,7 +606,7 @@ class AnalyzeHeader(LabeledWrapStruct):
         ndims = dims[0]
         if ndims == 0:
             return 0,
-        return tuple(int(d) for d in dims[1:ndims+1])
+        return tuple(int(d) for d in dims[1:ndims + 1])
 
     def set_data_shape(self, shape):
         ''' Set shape of data
@@ -594,18 +624,18 @@ class AnalyzeHeader(LabeledWrapStruct):
         dims[:] = 1
         dims[0] = ndims
         try:
-            dims[1:ndims+1] = shape
+            dims[1:ndims + 1] = shape
         except (ValueError, OverflowError):
             # numpy 1.4.1 at least generates a ValueError from trying to set a
             # python long into an int64 array (dims are int64 for nifti2)
             values_fit = False
         else:
-            values_fit = np.all(dims[1:ndims+1] == shape)
+            values_fit = np.all(dims[1:ndims + 1] == shape)
         # Error if we did not succeed setting dimensions
         if not values_fit:
             raise HeaderDataError('shape %s does not fit in dim datatype' %
                                   (shape,))
-        self._structarr['pixdim'][ndims+1:] = 1.0
+        self._structarr['pixdim'][ndims + 1:] = 1.0
 
     def get_base_affine(self):
         ''' Get affine from basic (shared) header fields
@@ -629,8 +659,8 @@ class AnalyzeHeader(LabeledWrapStruct):
         hdr = self._structarr
         dims = hdr['dim']
         ndim = dims[0]
-        return shape_zoom_affine(hdr['dim'][1:ndim+1],
-                                 hdr['pixdim'][1:ndim+1],
+        return shape_zoom_affine(hdr['dim'][1:ndim + 1],
+                                 hdr['pixdim'][1:ndim + 1],
                                  self.default_x_flip)
 
     get_best_affine = get_base_affine
@@ -661,7 +691,7 @@ class AnalyzeHeader(LabeledWrapStruct):
         if ndim == 0:
             return (1.0,)
         pixdims = hdr['pixdim']
-        return tuple(pixdims[1:ndim+1])
+        return tuple(pixdims[1:ndim + 1])
 
     def set_zooms(self, zooms):
         ''' Set zooms into header fields
@@ -678,9 +708,45 @@ class AnalyzeHeader(LabeledWrapStruct):
         if np.any(zooms < 0):
             raise HeaderDataError('zooms must be positive')
         pixdims = hdr['pixdim']
-        pixdims[1:ndim+1] = zooms[:]
+        pixdims[1:ndim + 1] = zooms[:]
 
     def as_analyze_map(self):
+        """ Return header as mapping for conversion to Analyze types
+
+        Collect data from custom header type to fill in fields for Analyze and
+        derived header types (such as Nifti1 and Nifti2).
+
+        When Analyze types convert another header type to their own type, they
+        call this this method to check if there are other Analyze / Nifti
+        fields that the source header would like to set.
+
+        Returns
+        -------
+        analyze_map : mapping
+            Object that can be used as a mapping thus::
+
+                for key in analyze_map:
+                    value = analyze_map[key]
+
+            where ``key`` is the name of a field that can be set in an Analyze
+            header type, such as Nifti1, and ``value`` is a value for the
+            field.  For example, `analyze_map` might be a something like
+            ``dict(regular='y', slice_duration=0.3)`` where ``regular`` is a
+            field present in both Analyze and Nifti1, and ``slice_duration`` is
+            a field restricted to Nifti1 and Nifti2.  If a particular Analyze
+            header type does not recognize the field name, it will throw away
+            the value without error.  See :meth:`Analyze.from_header`.
+
+        Notes
+        -----
+        You can also return a Nifti header with the relevant fields set.
+
+        Your header still needs methods ``get_data_dtype``, ``get_data_shape``
+        and ``get_zooms``, for the conversion, and these get called *after*
+        using the analyze map, so the methods will override values set in the
+        map.
+        """
+        # In the case of Analyze types, the header is already such a mapping
         return self
 
     def set_data_offset(self, offset):
@@ -717,17 +783,18 @@ class AnalyzeHeader(LabeledWrapStruct):
         slope) + inter``
 
         In this case, for Analyze images, we can't store the slope or the
-        intercept, so this method only checks that `slope` is None or 1.0, and
-        that `inter` is None or 0.
+        intercept, so this method only checks that `slope` is None or NaN or
+        1.0, and that `inter` is None or NaN or 0.
 
         Parameters
         ----------
         slope : None or float
-            If float, value must be 1.0 or we raise a ``HeaderTypeError``
+            If float, value must be NaN or 1.0 or we raise a ``HeaderTypeError``
         inter : None or float, optional
             If float, value must be 0.0 or we raise a ``HeaderTypeError``
         '''
-        if (slope is None or slope == 1.0) and (inter is None or inter == 0):
+        if ((slope in (None, 1) or np.isnan(slope)) and
+                (inter in (None, 0) or np.isnan(inter))):
             return
         raise HeaderTypeError('Cannot set slope != 1 or intercept != 0 '
                               'for Analyze headers')
@@ -791,7 +858,7 @@ class AnalyzeHeader(LabeledWrapStruct):
         rep.problem_level = 10
         rep.problem_msg = 'bitpix does not match datatype'
         if fix:
-            hdr['bitpix'] = bitpix # inplace modification
+            hdr['bitpix'] = bitpix  # inplace modification
             rep.fix_msg = 'setting bitpix to match datatype'
         return hdr, rep
 
@@ -825,18 +892,39 @@ class AnalyzeHeader(LabeledWrapStruct):
             rep.fix_msg = ' and '.join(fmsgs)
         return hdr, rep
 
+    @classmethod
+    def may_contain_header(klass, binaryblock):
+        if len(binaryblock) < klass.sizeof_hdr:
+            return False
+
+        hdr_struct = np.ndarray(shape=(), dtype=header_dtype,
+                                buffer=binaryblock[:klass.sizeof_hdr])
+        bs_hdr_struct = hdr_struct.byteswap()
+        return 348 in (hdr_struct['sizeof_hdr'], bs_hdr_struct['sizeof_hdr'])
+
 
 class AnalyzeImage(SpatialImage):
+    """ Class for basic Analyze format image
+    """
     header_class = AnalyzeHeader
-    files_types = (('image','.img'), ('header','.hdr'))
-    _compressed_exts = ('.gz', '.bz2')
+    _meta_sniff_len = header_class.sizeof_hdr
+    files_types = (('image', '.img'), ('header', '.hdr'))
+    valid_exts = ('.img', '.hdr')
+    _compressed_suffixes = ('.gz', '.bz2')
+
+    makeable = True
+    rw = True
 
     ImageArrayProxy = ArrayProxy
 
-    def get_header(self):
-        ''' Return header
-        '''
-        return self._header
+    def __init__(self, dataobj, affine, header=None,
+                 extra=None, file_map=None):
+        super(AnalyzeImage, self).__init__(
+            dataobj, affine, header, extra, file_map)
+        # Reset consumable values
+        self._header.set_data_offset(0)
+        self._header.set_slope_inter(None, None)
+    __init__.__doc__ = SpatialImage.__init__.__doc__
 
     def get_data_dtype(self):
         return self._header.get_data_dtype()
@@ -845,9 +933,30 @@ class AnalyzeImage(SpatialImage):
         self._header.set_data_dtype(dtype)
 
     @classmethod
-    def from_file_map(klass, file_map):
+    @kw_only_meth(1)
+    def from_file_map(klass, file_map, mmap=True):
         ''' class method to create image from mapping in `file_map ``
+
+        Parameters
+        ----------
+        file_map : dict
+            Mapping with (kay, value) pairs of (``file_type``, FileHolder
+            instance giving file-likes for each file needed for this image
+            type.
+        mmap : {True, False, 'c', 'r'}, optional, keyword only
+            `mmap` controls the use of numpy memory mapping for reading image
+            array data.  If False, do not try numpy ``memmap`` for data array.
+            If one of {'c', 'r'}, try numpy memmap with ``mode=mmap``.  A
+            `mmap` value of True gives the same behavior as ``mmap='c'``.  If
+            image data file cannot be memory-mapped, ignore `mmap` value and
+            read array from file.
+
+        Returns
+        -------
+        img : AnalyzeImage instance
         '''
+        if mmap not in (True, False, 'c', 'r'):
+            raise ValueError("mmap should be one of {True, False, 'c', 'r'}")
         hdr_fh, img_fh = klass._get_fileholders(file_map)
         with hdr_fh.get_prepare_fileobj(mode='rb') as hdrf:
             header = klass.header_class.from_fileobj(hdrf)
@@ -855,7 +964,7 @@ class AnalyzeImage(SpatialImage):
         imgf = img_fh.fileobj
         if imgf is None:
             imgf = img_fh.filename
-        data = klass.ImageArrayProxy(imgf, hdr_copy)
+        data = klass.ImageArrayProxy(imgf, hdr_copy, mmap=mmap)
         # Initialize without affine to allow header to pass through unmodified
         img = klass(data, None, header, file_map=file_map)
         # set affine from header though
@@ -864,6 +973,34 @@ class AnalyzeImage(SpatialImage):
                            'affine': img._affine.copy(),
                            'file_map': copy_file_map(file_map)}
         return img
+
+    @classmethod
+    @kw_only_meth(1)
+    def from_filename(klass, filename, mmap=True):
+        ''' class method to create image from filename `filename`
+
+        Parameters
+        ----------
+        filename : str
+            Filename of image to load
+        mmap : {True, False, 'c', 'r'}, optional, keyword only
+            `mmap` controls the use of numpy memory mapping for reading image
+            array data.  If False, do not try numpy ``memmap`` for data array.
+            If one of {'c', 'r'}, try numpy memmap with ``mode=mmap``.  A
+            `mmap` value of True gives the same behavior as ``mmap='c'``.  If
+            image data file cannot be memory-mapped, ignore `mmap` value and
+            read array from file.
+
+        Returns
+        -------
+        img : Analyze Image instance
+        '''
+        if mmap not in (True, False, 'c', 'r'):
+            raise ValueError("mmap should be one of {True, False, 'c', 'r'}")
+        file_map = klass.filespec_to_file_map(filename)
+        return klass.from_file_map(file_map, mmap=mmap)
+
+    load = from_filename
 
     @staticmethod
     def _get_fileholders(file_map):
@@ -874,22 +1011,6 @@ class AnalyzeImage(SpatialImage):
         image.
         """
         return file_map['header'], file_map['image']
-
-    def _write_header(self, header_file, header, slope, inter):
-        ''' Utility routine to write header
-
-        Parameters
-        ----------
-        header_file : file-like
-           file-like object implementing ``write``, open for writing
-        header : header object
-        slope : None or float
-           slope for data scaling
-        inter : None or float
-           intercept for data scaling
-        '''
-        header.set_slope_inter(slope, inter)
-        header.write_to(header_file)
 
     def to_file_map(self, file_map=None):
         ''' Write image to `file_map` or contained ``self.file_map``
@@ -904,35 +1025,59 @@ class AnalyzeImage(SpatialImage):
             file_map = self.file_map
         data = self.get_data()
         self.update_header()
-        hdr = self.get_header()
+        hdr = self._header
         out_dtype = self.get_data_dtype()
-        arr_writer = make_array_writer(data,
-                                       out_dtype,
-                                       hdr.has_data_slope,
-                                       hdr.has_data_intercept)
+        # Store consumable values for later restore
+        offset = hdr.get_data_offset()
+        # Scalars of slope, offset to get immutable values
+        slope = (np.asscalar(hdr['scl_slope']) if hdr.has_data_slope
+                 else np.nan)
+        inter = (np.asscalar(hdr['scl_inter']) if hdr.has_data_intercept
+                 else np.nan)
+        # Check whether to calculate slope / inter
+        scale_me = np.all(np.isnan((slope, inter)))
+        if scale_me:
+            arr_writer = make_array_writer(data,
+                                           out_dtype,
+                                           hdr.has_data_slope,
+                                           hdr.has_data_intercept)
+        else:
+            arr_writer = ArrayWriter(data, out_dtype, check_scaling=False)
         hdr_fh, img_fh = self._get_fileholders(file_map)
         # Check if hdr and img refer to same file; this can happen with odd
-        # analyze images but most often this is because it's a single nifti file
+        # analyze images but most often this is because it's a single nifti
+        # file
         hdr_img_same = hdr_fh.same_file_as(img_fh)
         hdrf = hdr_fh.get_prepare_fileobj(mode='wb')
         if hdr_img_same:
             imgf = hdrf
         else:
             imgf = img_fh.get_prepare_fileobj(mode='wb')
-        slope, inter = get_slope_inter(arr_writer)
-        self._write_header(hdrf, hdr, slope, inter)
+        # Rescale values if asked
+        if scale_me:
+            hdr.set_slope_inter(*get_slope_inter(arr_writer))
+        # Write header
+        hdr.write_to(hdrf)
         # Write image
         shape = hdr.get_data_shape()
         if data.shape != shape:
             raise HeaderDataError('Data should be shape (%s)' %
                                   ', '.join(str(s) for s in shape))
-        seek_tell(imgf, hdr.get_data_offset())
+        # Seek to writing position, get there by writing zeros if seek fails
+        seek_tell(imgf, hdr.get_data_offset(), write0=True)
+        # Write array data
         arr_writer.to_fileobj(imgf)
         hdrf.close_if_mine()
         if not hdr_img_same:
             imgf.close_if_mine()
         self._header = hdr
         self.file_map = file_map
+        # Restore any changed consumable values
+        hdr.set_data_offset(offset)
+        if hdr.has_data_slope:
+            hdr['scl_slope'] = slope
+        if hdr.has_data_intercept:
+            hdr['scl_inter'] = inter
 
 
 load = AnalyzeImage.load

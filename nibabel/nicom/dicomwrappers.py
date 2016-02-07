@@ -18,7 +18,7 @@ import numpy as np
 
 from . import csareader as csar
 from .dwiparams import B2q, nearest_pos_semi_def, q2bg
-from ..volumeutils import BinOpener
+from ..openers import ImageOpener
 from ..onetime import setattr_on_read as one_time
 
 
@@ -49,10 +49,13 @@ def wrapper_from_file(file_like, *args, **kwargs):
     dcm_w : ``dicomwrappers.Wrapper`` or subclass
        DICOM wrapper corresponding to DICOM data type
     """
-    import dicom
+    try:
+        from dicom import read_file
+    except ImportError:
+        from pydicom.dicomio import read_file
 
-    with BinOpener(file_like) as fobj:
-        dcm_data = dicom.read_file(fobj, *args, **kwargs)
+    with ImageOpener(file_like) as fobj:
+        dcm_data = read_file(fobj, *args, **kwargs)
     return wrapper_from_data(dcm_data)
 
 
@@ -169,7 +172,7 @@ class Wrapper(object):
         """
         iop = self.image_orient_patient
         s_norm = self.slice_normal
-        if None in (iop, s_norm):
+        if iop is None or s_norm is None:
             return None
         R = np.eye(3)
         # np.fliplr(iop) gives matrix F in
@@ -182,7 +185,8 @@ class Wrapper(object):
         # motivated in ``doc/source/notebooks/ata_error.ipynb``, and from
         # discussion at https://github.com/nipy/nibabel/pull/156
         if not np.allclose(np.eye(3), np.dot(R, R.T), atol=5e-5):
-            raise WrapperPrecisionError('Rotation matrix not nearly orthogonal')
+            raise WrapperPrecisionError('Rotation matrix not nearly '
+                                        'orthogonal')
         return R
 
     @one_time
@@ -235,7 +239,7 @@ class Wrapper(object):
         """
         ipp = self.image_position
         s_norm = self.slice_normal
-        if None in (ipp, s_norm):
+        if ipp is None or s_norm is None:
             return None
         return np.inner(ipp, s_norm)
 
@@ -274,7 +278,7 @@ class Wrapper(object):
 
     def __getitem__(self, key):
         """ Return values from DICOM object"""
-        if not key in self.dcm_data:
+        if key not in self.dcm_data:
             raise KeyError('"%s" not in self.dcm_data' % key)
         return self.dcm_data.get(key)
 
@@ -304,7 +308,7 @@ class Wrapper(object):
         # column, slice)
         vox = self.voxel_sizes
         ipp = self.image_position
-        if None in (orient, vox, ipp):
+        if any(p is None for p in (orient, vox, ipp)):
             raise WrapperError('Not enough information for affine')
         aff = np.eye(4)
         aff[:3, :3] = orient * np.array(vox)
@@ -371,7 +375,8 @@ class Wrapper(object):
         return True
 
     def _scale_data(self, data):
-        # depending on pydicom and dicom files, values might need casting from Decimal to float
+        # depending on pydicom and dicom files, values might need casting from
+        # Decimal to float
         scale = float(self.get('RescaleSlope', 1))
         offset = float(self.get('RescaleIntercept', 0))
         return self._apply_scale_offset(data, scale, offset)
@@ -471,7 +476,8 @@ class MultiframeWrapper(Wrapper):
         n_dim = frame_indices.shape[1] + 1
         # Check there is only one multiframe stack index
         if np.any(np.diff(frame_indices[:, 0])):
-            raise WrapperError("File contains more than one StackID. Cannot handle multi-stack files")
+            raise WrapperError("File contains more than one StackID. Cannot "
+                               "handle multi-stack files")
         # Store frame indices
         self._frame_indices = frame_indices[:, 1:]
         if n_dim < 4:  # 3D volume
@@ -481,7 +487,8 @@ class MultiframeWrapper(Wrapper):
         shape = (rows, cols) + tuple(ns_unique)
         n_vols = np.prod(shape[3:])
         if n_frames != n_vols * shape[2]:
-            raise WrapperError("Calculated shape does not match number of frames.")
+            raise WrapperError("Calculated shape does not match number of "
+                               "frames.")
         return tuple(shape)
 
     @one_time
@@ -495,7 +502,8 @@ class MultiframeWrapper(Wrapper):
             try:
                 iop = self.frames[0].PlaneOrientationSequence[0].ImageOrientationPatient
             except AttributeError:
-                raise WrapperError("Not enough information for image_orient_patient")
+                raise WrapperError("Not enough information for "
+                                   "image_orient_patient")
         if iop is None:
             return None
         iop = np.array(list(map(float, iop)))
@@ -611,8 +619,8 @@ class SiemensWrapper(Wrapper):
 
     @one_time
     def slice_normal(self):
-        #The std_slice_normal comes from the cross product of the directions
-        #in the ImageOrientationPatient
+        # The std_slice_normal comes from the cross product of the directions
+        # in the ImageOrientationPatient
         std_slice_normal = super(SiemensWrapper, self).slice_normal
         csa_slice_normal = csar.get_slice_normal(self.csa_header)
         if std_slice_normal is None and csa_slice_normal is None:
@@ -622,12 +630,12 @@ class SiemensWrapper(Wrapper):
         elif csa_slice_normal is None:
             return std_slice_normal
         else:
-            #Make sure the two normals are very close to parallel unit vectors
+            # Make sure the two normals are very close to parallel unit vectors
             dot_prod = np.dot(csa_slice_normal, std_slice_normal)
             assert np.allclose(np.fabs(dot_prod), 1.0, atol=1e-5)
-            #Use the slice normal computed with the cross product as it will
-            #always be the most orthogonal, but take the sign from the CSA
-            #slice normal
+            # Use the slice normal computed with the cross product as it will
+            # always be the most orthogonal, but take the sign from the CSA
+            # slice normal
             if dot_prod < 0:
                 return -std_slice_normal
             else:
@@ -638,7 +646,7 @@ class SiemensWrapper(Wrapper):
         """ Add ICE dims from CSA header to signature """
         signature = super(SiemensWrapper, self).series_signature
         ice = csar.get_ice_dims(self.csa_header)
-        if not ice is None:
+        if ice is not None:
             ice = ice[:6] + ice[8:9]
         signature['ICE_Dims'] = (ice, lambda x, y: x == y)
         return signature
@@ -786,7 +794,7 @@ class MosaicWrapper(SiemensWrapper):
         md_rows, md_cols = (self.get('Rows'), self.get('Columns'))
         iop = self.image_orient_patient
         pix_spacing = self.get('PixelSpacing')
-        if None in (ipp, md_rows, md_cols, iop, pix_spacing):
+        if any(x is None for x in (ipp, md_rows, md_cols, iop, pix_spacing)):
             return None
         # PixelSpacing values are python Decimal in pydicom 0.9.7
         pix_spacing = np.array(list(map(float, pix_spacing)))
@@ -817,19 +825,20 @@ class MosaicWrapper(SiemensWrapper):
         -----
         The apparent image in the DICOM file is a 2D array that consists of
         blocks, that are the output 2D slices.  Let's call the original array
-        the *slab*, and the contained slices *slices*.   The slices are of pixel
-        dimension ``n_slice_rows`` x ``n_slice_cols``.  The slab is of pixel
-        dimension ``n_slab_rows`` x ``n_slab_cols``.  Because the arrangement of
-        blocks in the slab is defined as being square, the number of blocks per
-        slab row and slab column is the same.  Let ``n_blocks`` be the number of
-        blocks contained in the slab.  There is also ``n_slices`` - the number
-        of slices actually collected, some number <= ``n_blocks``.  We have the
-        value ``n_slices`` from the 'NumberOfImagesInMosaic' field of the
-        Siemens private (CSA) header.  ``n_row_blocks`` and ``n_col_blocks`` are
-        therefore given by ``ceil(sqrt(n_slices))``, and ``n_blocks`` is
-        ``n_row_blocks ** 2``.  Also ``n_slice_rows == n_slab_rows /
-        n_row_blocks``, etc.  Using these numbers we can therefore reconstruct
-        the slices from the 2D DICOM pixel array.
+        the *slab*, and the contained slices *slices*.   The slices are of
+        pixel dimension ``n_slice_rows`` x ``n_slice_cols``.  The slab is of
+        pixel dimension ``n_slab_rows`` x ``n_slab_cols``.  Because the
+        arrangement of blocks in the slab is defined as being square, the
+        number of blocks per slab row and slab column is the same.  Let
+        ``n_blocks`` be the number of blocks contained in the slab.  There is
+        also ``n_slices`` - the number of slices actually collected, some
+        number <= ``n_blocks``.  We have the value ``n_slices`` from the
+        'NumberOfImagesInMosaic' field of the Siemens private (CSA) header.
+        ``n_row_blocks`` and ``n_col_blocks`` are therefore given by
+        ``ceil(sqrt(n_slices))``, and ``n_blocks`` is ``n_row_blocks ** 2``.
+        Also ``n_slice_rows == n_slab_rows / n_row_blocks``, etc.  Using these
+        numbers we can therefore reconstruct the slices from the 2D DICOM pixel
+        array.
         """
         shape = self.image_shape
         if shape is None:
@@ -881,8 +890,8 @@ def none_or_close(val1, val2, rtol=1e-5, atol=1e-6):
     >>> none_or_close([0,1], [0,2])
     False
     """
-    if (val1, val2) == (None, None):
+    if val1 is None and val2 is None:
         return True
-    if None in (val1, val2):
+    if val1 is None or val2 is None:
         return False
     return np.allclose(val1, val2, rtol, atol)
