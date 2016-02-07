@@ -138,8 +138,7 @@ class ArrayProxy(object):
                                        offset=self._offset,
                                        order=self.order,
                                        mmap=self._mmap)
-        # Upcast as necessary for big slopes, intercepts
-        return apply_read_scaling(raw_data, self._slope, self._inter)
+        return raw_data
 
     def __array__(self):
         # Read array and scale
