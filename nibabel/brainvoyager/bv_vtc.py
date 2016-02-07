@@ -46,7 +46,7 @@ def _make_vtc_header_dtd(fmrlt, prts):
     return vtc_header_dtd
 
 
-class VtcHeader(BvFileHeader):
+class BvVtcHeader(BvFileHeader):
 
     # format defaults
     allowed_dtypes = [2]
@@ -66,7 +66,7 @@ class VtcHeader(BvFileHeader):
     def set_data_shape(self, shape=None, zyx=None, t=None):
         ''' Set shape of data
         To conform with nibabel standards this implements shape.
-        However, to fill the VtcHeader with sensible information use the zyxt parameter instead.
+        However, to fill the BvVtcHeader with sensible information use the zyxt parameter instead.
 
         Parameters
         ----------
@@ -239,12 +239,12 @@ class VtcHeader(BvFileHeader):
         return hdr, rep
 
 
-class VtcImage(BvFileImage):
+class BvVtcImage(BvFileImage):
     # Set the class of the corresponding header
-    header_class = VtcHeader
+    header_class = BvVtcHeader
 
     # Set the label ('image') and the extension ('.vtc') for a VTC file
     files_types = (('image', '.vtc'),)
 
-load = VtcImage.load
-save = VtcImage.instance_to_filename
+load = BvVtcImage.load
+save = BvVtcImage.instance_to_filename

@@ -154,7 +154,7 @@ def _fill_default_vmp_submap_header(hdr, submap):
     return hdr
 
 
-class VmpHeader(BvFileHeader):
+class BvVmpHeader(BvFileHeader):
     ''' Class for BrainVoyager NR-VMP header
     '''
 
@@ -175,7 +175,7 @@ class VmpHeader(BvFileHeader):
     def set_data_shape(self, shape=None, zyx=None, n=None):
         ''' Set shape of data
         To conform with nibabel standards this implements shape.
-        However, to fill the VtcHeader with sensible information use the zyxn parameter instead.
+        However, to fill the BvVtcHeader with sensible information use the zyxn parameter instead.
 
         Parameters
         ----------
@@ -495,12 +495,12 @@ class VmpHeader(BvFileHeader):
         return ()
 
 
-class VmpImage(BvFileImage):
+class BvVmpImage(BvFileImage):
     # Set the class of the corresponding header
-    header_class = VmpHeader
+    header_class = BvVmpHeader
 
     # Set the label ('image') and the extension ('.vmp') for a VMP file
     files_types = (('image', '.vmp'),)
 
-load = VmpImage.load
-save = VmpImage.instance_to_filename
+load = BvVmpImage.load
+save = BvVmpImage.instance_to_filename

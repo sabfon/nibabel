@@ -51,7 +51,7 @@ from .nifti1 import Nifti1Header, Nifti1Image, Nifti1Pair
 from .nifti2 import Nifti2Header, Nifti2Image, Nifti2Pair
 from .minc1 import Minc1Image
 from .minc2 import Minc2Image
-from .brainvoyager import MskHeader, MskImage, VmpHeader, VmpImage, VtcHeader, VtcImage
+from .brainvoyager import BvMskHeader, BvMskImage, BvVmpHeader, BvVmpImage, BvVtcHeader, BvVtcImage
 # Deprecated backwards compatiblity for MINC1
 from .deprecated import ModuleProxy as _ModuleProxy
 minc = _ModuleProxy('nibabel.minc')

@@ -30,7 +30,7 @@ msk_header_dtd = \
     ]
 
 
-class MskHeader(BvFileHeader):
+class BvMskHeader(BvFileHeader):
     '''Class for BrainVoyager MSK header
     '''
     # copy of module-level template definition
@@ -54,7 +54,7 @@ class MskHeader(BvFileHeader):
     def set_data_shape(self, shape=None, zyx=None):
         ''' Set shape of data
         To conform with nibabel standards this implements shape.
-        However, to fill the VtcHeader with sensible information use the zyxt parameter instead.
+        However, to fill the BvVtcHeader with sensible information use the zyxt parameter instead.
 
         Parameters
         ----------
@@ -112,15 +112,15 @@ class MskHeader(BvFileHeader):
         return ()
 
 
-class MskImage(BvFileImage):
+class BvMskImage(BvFileImage):
     ''' Class for BrainVoyager MSK masks
     MSK files are technically binary images
     '''
     # Set the class of the corresponding header
-    header_class = MskHeader
+    header_class = BvMskHeader
 
     # Set the label ('image') and the extension ('.msk') for a MSK file
     files_types = (('image', '.msk'),)
 
-load = MskImage.load
-save = MskImage.instance_to_filename
+load = BvMskImage.load
+save = BvMskImage.instance_to_filename

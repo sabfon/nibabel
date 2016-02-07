@@ -20,7 +20,7 @@ from .parrec import PARRECImage
 from .spm99analyze import Spm99AnalyzeImage
 from .spm2analyze import Spm2AnalyzeImage
 from .volumeutils import Recoder
-from .brainvoyager import MskImage, VtcImage, VmpImage
+from .brainvoyager import BvMskImage, BvVtcImage, BvVmpImage
 
 from .optpkg import optional_package
 _, have_scipy, _ = optional_package('scipy')
@@ -82,15 +82,15 @@ class_map = ClassMapDict(
          'has_affine': True,
          'makeable': True,
          'rw': True},
-    vtc={'class': VtcImage,
+    vtc={'class': BvVtcImage,
          'ext': '.vtc',
          'has_affine': True,
          'rw': True},
-    msk={'class': MskImage,
+    msk={'class': BvMskImage,
          'ext': '.msk',
          'has_affine': True,
          'rw': True},
-    vmp={'class': VmpImage,
+    vmp={'class': BvVmpImage,
          'ext': '.vmp',
          'has_affine': True,
          'rw': True},

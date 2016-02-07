@@ -34,8 +34,8 @@ _, have_h5py, _ = optional_package('h5py')
 
 from nibabel import (AnalyzeImage, Spm99AnalyzeImage, Spm2AnalyzeImage,
                      Nifti1Pair, Nifti1Image, Nifti2Pair, Nifti2Image,
-                     MGHImage, Minc1Image, Minc2Image, VtcImage, MskImage,
-                     VmpImage)
+                     MGHImage, Minc1Image, Minc2Image, BvVtcImage, BvMskImage,
+                     BvVmpImage)
 from nibabel.spatialimages import SpatialImage
 from nibabel.ecat import EcatImage
 from nibabel import minc1, minc2, parrec
@@ -446,7 +446,7 @@ class TestMGHAPI(TestAnalyzeAPI):
 
 
 class TestBvVtcAPI(TestAnalyzeAPI):
-    image_class = VtcImage
+    image_class = BvVtcImage
     shapes = [(2,3,4,5)] # VTC files can only hold 4D data
     dtypes = [np.dtype(np.float32).newbyteorder('<')]
     has_scaling = True
@@ -490,7 +490,7 @@ class TestBvVtcAPI(TestAnalyzeAPI):
         yield prox_imaker, params
 
 class TestBvMskAPI(TestBvVtcAPI):
-    image_class = MskImage
+    image_class = BvMskImage
     shapes = [(2,3,4)] # MSK files can only hold 3D data
     dtypes = [np.dtype(np.uint8).newbyteorder('<')]
     has_scaling = False
@@ -498,7 +498,7 @@ class TestBvMskAPI(TestBvVtcAPI):
     standard_extension = '.msk'
 
 class TestBvVmpAPI(TestBvVtcAPI):
-    image_class = VmpImage
+    image_class = BvVmpImage
     shapes = [(1,3,4,5)] # VMP files can only hold 4D data and the default header produces only one map (1st dim)
     dtypes = [np.dtype(np.float32).newbyteorder('<')]
     has_scaling = True
