@@ -23,9 +23,9 @@ Quickstart
    img3 = nib.load('spm_file.img')
 
    data = img1.get_data()
-   affine = img1.get_affine()
+   affine = img1.affine
 
-   print img1
+   print(img1)
 
    nib.save(img1, 'my_file_copy.nii.gz')
 
@@ -43,6 +43,7 @@ from . import ecat
 # object imports
 from .fileholders import FileHolder, FileHolderError
 from .loadsave import load, save
+from .arrayproxy import is_proxy
 from .analyze import AnalyzeHeader, AnalyzeImage
 from .spm99analyze import Spm99AnalyzeHeader, Spm99AnalyzeImage
 from .spm2analyze import Spm2AnalyzeHeader, Spm2AnalyzeImage
@@ -50,9 +51,7 @@ from .nifti1 import Nifti1Header, Nifti1Image, Nifti1Pair
 from .nifti2 import Nifti2Header, Nifti2Image, Nifti2Pair
 from .minc1 import Minc1Image
 from .minc2 import Minc2Image
-from .bv_vtc import VtcHeader,VtcImage
-from .bv_msk import MskHeader,MskImage
-from .bv_vmp import VmpHeader,VmpImage
+from .brainvoyager import BvMskHeader, BvMskImage, BvVmpHeader, BvVmpImage, BvVtcHeader, BvVtcImage
 # Deprecated backwards compatiblity for MINC1
 from .deprecated import ModuleProxy as _ModuleProxy
 minc = _ModuleProxy('nibabel.minc')
@@ -63,8 +62,9 @@ from .funcs import (squeeze_image, concat_images, four_to_three,
 from .orientations import (io_orientation, orientation_affine,
                            flip_axis, OrientationError,
                            apply_orientation, aff2axcodes)
-from .imageclasses import class_map, ext_map
+from .imageclasses import class_map, ext_map, all_image_classes
 from . import trackvis
+from . import mriutils
 
 # be friendly on systems with ancient numpy -- no tests, but at least
 # importable
@@ -74,7 +74,11 @@ try:
     bench = Tester().bench
     del Tester
 except ImportError:
-    def test(*args, **kwargs): raise RuntimeError('Need numpy >= 1.2 for tests')
+    def test(*args, **kwargs):
+        raise RuntimeError('Need numpy >= 1.2 for tests')
 
 from .pkg_info import get_pkg_info as _get_pkg_info
-get_info = lambda : _get_pkg_info(os.path.dirname(__file__))
+
+
+def get_info():
+    return _get_pkg_info(os.path.dirname(__file__))

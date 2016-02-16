@@ -4,6 +4,17 @@
 Principles of data package
 ##########################
 
+*******
+Summary
+*******
+
+This is a discussion of data packages, as they are currently implemented in
+nibabel / nipy.
+
+This API proved to be very uncomfortable, and we intend to replace it fairly
+soon.  See ``data_packages.rst`` in the `nibabel wiki`_ for our current
+thinking, not yet implemented.
+
 **********
 Motivation
 **********
@@ -87,9 +98,9 @@ tag, but perhaps it's reasonable to restrict tags to refer to revisions.  A
 refers to a static state of the data.  An example might be a numbered version.
 So, a package may have a revision uniquely identified by a revision id
 ``af5bd6``.  We might decide to label this revision ``release-0.3`` (the
-equivalent of applying a git tag).  ``release-0.3`` is the tag and ``af5bd6``
-is the revision id.  Different sources of the same package might possibly
-produce different tags [#tag-sources]_
+equivalent of applying a git tag).  ``release-0.3`` is the tag and ``af5bd6`` is
+the revision id.  Different sources of the same package might possibly produce
+different tags [#tag-sources]_
 
 Pinstance version
 =================
@@ -264,7 +275,7 @@ Issues
 ******
 
 From a brief scan of the `debian package management documentation
-<http://www.debian.org/doc/manuals/debian-reference/ch02.en.html>`_.
+<https://www.debian.org/doc/manuals/debian-reference/ch02.en.html>`_.
 
 Dependency management
 =====================
@@ -281,7 +292,7 @@ Authentication and validation
 For dependency and validation, see the `Debian secure apt`_ page. One related
 proposal would be:
 
-.. _Debian secure apt: http://wiki.debian.org/SecureApt
+.. _Debian secure apt: https://wiki.debian.org/SecureApt
 
 * Each package instantiation would carry a table of checksums for the files
   within.  Someone using this instantiation would check the checksums to confirm
@@ -354,7 +365,7 @@ Discovery
 
 .. rubric:: Footnotes
 
-.. [tag-sources]
+.. [#tag-sources]
 
     Revsion ids could for example be hashes of the package instantiation
     (package contents), so they could be globally unique to the contents,

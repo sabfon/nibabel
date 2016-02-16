@@ -15,6 +15,7 @@ from ..externals.six import BytesIO
 from ..volumeutils import (calculate_scale, scale_min_max, finite_range,
                            apply_read_scaling, array_to_file, array_from_file)
 from ..casting import type_info
+from ..testing import suppress_warnings
 
 from numpy.testing import (assert_array_almost_equal, assert_array_equal)
 
@@ -24,6 +25,7 @@ from nose.tools import (assert_true, assert_equal, assert_raises,
 
 # Debug print statements
 DEBUG = True
+
 
 def test_scale_min_max():
     mx_dt = np.maximum_sctype(np.float)
@@ -44,15 +46,15 @@ def test_scale_min_max():
         for mn, mx in value_pairs:
             # with intercept
             scale, inter = scale_min_max(mn, mx, tp, True)
-            if mx-mn:
-                assert_array_almost_equal, (mx-inter) / scale, imax
-                assert_array_almost_equal, (mn-inter) / scale, imin
+            if mx - mn:
+                assert_array_almost_equal, (mx - inter) / scale, imax
+                assert_array_almost_equal, (mn - inter) / scale, imin
             else:
                 assert_equal, (scale, inter), (1.0, mn)
             # without intercept
             if imin == 0 and mn < 0 and mx > 0:
                 (assert_raises, ValueError,
-                       scale_min_max, mn, mx, tp, False)
+                 scale_min_max, mn, mx, tp, False)
                 continue
             scale, inter = scale_min_max(mn, mx, tp, False)
             assert_equal, inter, 0.0
@@ -64,9 +66,9 @@ def test_scale_min_max():
             assert_true, sc_mn >= imin
             assert_true, sc_mx <= imax
             if imin == 0:
-                if mx > 0: # numbers all +ve
+                if mx > 0:  # numbers all +ve
                     assert_array_almost_equal, mx / scale, imax
-                else: # numbers all -ve
+                else:  # numbers all -ve
                     assert_array_almost_equal, mn / scale, imax
                 continue
             if abs(mx) >= abs(mn):
@@ -77,19 +79,48 @@ def test_scale_min_max():
 
 def test_finite_range():
     # Finite range utility function
-    a = np.array([[-1, 0, 1],[np.inf, np.nan, -np.inf]])
-    assert_equal(finite_range(a), (-1.0, 1.0))
-    a = np.array([[np.nan],[np.nan]])
-    assert_equal(finite_range(a), (np.inf, -np.inf))
-    a = np.array([[-3, 0, 1],[2,-1,4]], dtype=np.int)
-    assert_equal(finite_range(a), (-3, 4))
-    a = np.array([[1, 0, 1],[2,3,4]], dtype=np.uint)
-    assert_equal(finite_range(a), (0, 4))
-    a = a + 1j
+    for in_arr, res in (
+        ([[-1, 0, 1], [np.inf, np.nan, -np.inf]], (-1, 1)),
+        (np.array([[-1, 0, 1], [np.inf, np.nan, -np.inf]]), (-1, 1)),
+        ([[np.nan], [np.nan]], (np.inf, -np.inf)),  # all nans slices
+        (np.zeros((3, 4, 5)) + np.nan, (np.inf, -np.inf)),
+        ([[-np.inf], [np.inf]], (np.inf, -np.inf)),  # all infs slices
+        (np.zeros((3, 4, 5)) + np.inf, (np.inf, -np.inf)),
+        ([[np.nan, -1, 2], [-2, np.nan, 1]], (-2, 2)),
+        ([[np.nan, -np.inf, 2], [-2, np.nan, np.inf]], (-2, 2)),
+        ([[-np.inf, 2], [np.nan, 1]], (1, 2)),  # good max case
+        ([[np.nan, -np.inf, 2], [-2, np.nan, np.inf]], (-2, 2)),
+        ([np.nan], (np.inf, -np.inf)),
+        ([np.inf], (np.inf, -np.inf)),
+        ([-np.inf], (np.inf, -np.inf)),
+        ([np.inf, 1], (1, 1)),  # only look at finite values
+        ([-np.inf, 1], (1, 1)),
+        ([[], []], (np.inf, -np.inf)),  # empty array
+        (np.array([[-3, 0, 1], [2, -1, 4]], dtype=np.int), (-3, 4)),
+        (np.array([[1, 0, 1], [2, 3, 4]], dtype=np.uint), (0, 4)),
+        ([0., 1, 2, 3], (0, 3)),
+        # Complex comparison works as if they are floats
+        ([[np.nan, -1 - 100j, 2], [-2, np.nan, 1 + 100j]], (-2, 2)),
+        ([[np.nan, -1, 2 - 100j], [-2 + 100j, np.nan, 1]], (-2 + 100j, 2 - 100j)),
+    ):
+        assert_equal(finite_range(in_arr), res)
+        assert_equal(finite_range(in_arr, False), res)
+        assert_equal(finite_range(in_arr, check_nan=False), res)
+        has_nan = np.any(np.isnan(in_arr))
+        assert_equal(finite_range(in_arr, True), res + (has_nan,))
+        assert_equal(finite_range(in_arr, check_nan=True), res + (has_nan,))
+        in_arr = np.array(in_arr)
+        flat_arr = in_arr.ravel()
+        assert_equal(finite_range(flat_arr), res)
+        assert_equal(finite_range(flat_arr, True), res + (has_nan,))
+        # Check float types work as complex
+        if in_arr.dtype.kind == 'f':
+            c_arr = in_arr.astype(np.complex)
+            assert_equal(finite_range(c_arr), res)
+            assert_equal(finite_range(c_arr, True), res + (has_nan,))
+    # Test error cases
+    a = np.array([[1., 0, 1], [2, 3, 4]]).view([('f1', 'f')])
     assert_raises(TypeError, finite_range, a)
-    # 1D case
-    a = np.array([0., 1, 2, 3])
-    assert_equal(finite_range(a), (0,3))
 
 
 def test_calculate_scale():
@@ -117,7 +148,7 @@ def test_a2f_mn_mx():
     str_io = BytesIO()
     for out_type in (np.int16, np.float32):
         arr = np.arange(6, dtype=out_type)
-        arr_orig = arr.copy() # safe backup for testing against
+        arr_orig = arr.copy()  # safe backup for testing against
         # Basic round trip to warm up
         array_to_file(arr, str_io)
         data_back = array_from_file(arr.shape, out_type, str_io)
@@ -128,21 +159,21 @@ def test_a2f_mn_mx():
         # arr unchanged
         assert_array_equal(arr, arr_orig)
         # returned value clipped low
-        assert_array_equal(data_back, [2,2,2,3,4,5])
+        assert_array_equal(data_back, [2, 2, 2, 3, 4, 5])
         # Clip high
         array_to_file(arr, str_io, mx=4)
         data_back = array_from_file(arr.shape, out_type, str_io)
         # arr unchanged
         assert_array_equal(arr, arr_orig)
         # returned value clipped high
-        assert_array_equal(data_back, [0,1,2,3,4,4])
+        assert_array_equal(data_back, [0, 1, 2, 3, 4, 4])
         # Clip both
         array_to_file(arr, str_io, mn=2, mx=4)
         data_back = array_from_file(arr.shape, out_type, str_io)
         # arr unchanged
         assert_array_equal(arr, arr_orig)
         # returned value clipped high
-        assert_array_equal(data_back, [2,2,2,3,4,4])
+        assert_array_equal(data_back, [2, 2, 2, 3, 4, 4])
 
 
 def test_a2f_nan2zero():
@@ -157,11 +188,13 @@ def test_a2f_nan2zero():
     data_back = array_from_file(arr.shape, np.float32, str_io)
     assert_array_equal(np.isnan(data_back), [True, False])
     # Integer output with nan2zero gives zero
-    array_to_file(arr, str_io, np.int32, nan2zero=True)
+    with np.errstate(invalid='ignore'):
+        array_to_file(arr, str_io, np.int32, nan2zero=True)
     data_back = array_from_file(arr.shape, np.int32, str_io)
     assert_array_equal(data_back, [0, 99])
     # Integer output with nan2zero=False gives whatever astype gives
-    array_to_file(arr, str_io, np.int32, nan2zero=False)
+    with np.errstate(invalid='ignore'):
+        array_to_file(arr, str_io, np.int32, nan2zero=False)
     data_back = array_from_file(arr.shape, np.int32, str_io)
     assert_array_equal(data_back, [np.array(np.nan).astype(np.int32), 99])
 
@@ -200,7 +233,7 @@ def test_scaling_in_abstract():
     # for any simple way of doing the calculation, the result is near enough
     for category0, category1 in (('int', 'int'),
                                  ('uint', 'int'),
-                                ):
+                                 ):
         for in_type in np.sctypes[category0]:
             for out_type in np.sctypes[category1]:
                 check_int_a2f(in_type, out_type)
@@ -209,10 +242,11 @@ def test_scaling_in_abstract():
                                  ('float', 'uint'),
                                  ('complex', 'int'),
                                  ('complex', 'uint'),
-                                ):
+                                 ):
         for in_type in np.sctypes[category0]:
             for out_type in np.sctypes[category1]:
-                check_int_a2f(in_type, out_type)
+                with suppress_warnings():  # overflow
+                    check_int_a2f(in_type, out_type)
 
 
 def check_int_a2f(in_type, out_type):
@@ -227,7 +261,7 @@ def check_int_a2f(in_type, out_type):
             if DEBUG:
                 print('Hit PPC max -> inf bug; skip in_type %s' % in_type)
             return
-    else: # Funny behavior with complex256
+    else:  # Funny behavior with complex256
         data = np.zeros((2,), in_type)
         data[0] = this_min + 0j
         data[1] = this_max + 0j

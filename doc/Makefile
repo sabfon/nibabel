@@ -12,11 +12,15 @@ BUILDROOT       = ../build
 PAPEROPT_a4     = -D latex_paper_size=a4
 PAPEROPT_letter = -D latex_paper_size=letter
 ALLSPHINXOPTS   = -d $(BUILDROOT)/doctrees $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) source
+
+# API generation
+API_DIR = source/reference
 .PHONY: help clean html web pickle htmlhelp latex changes linkcheck
 
 help:
 	@echo "Please use \`make <target>' where <target> is one of"
 	@echo "  html      to make standalone HTML files"
+	@echo "  api       to make the auto-generated API files"
 	@echo "  pickle    to make pickle files (usable by e.g. sphinx-web)"
 	@echo "  htmlhelp  to make HTML files and a HTML help project"
 	@echo "  latex     to make LaTeX files, you can set PAPER=a4 or PAPER=letter"
@@ -25,23 +29,27 @@ help:
 	@echo "  doctest   to run all doctests embedded in the documentation (if enabled)"
 	@echo "  gitwash-update update git workflow from source repo"
 
-clean:
+clean: api-clean
 	-rm -rf $(BUILDROOT)/*
-	-rm -rf source/generated generate-stamp
+	-rm *-stamp
 
-generate: generate-stamp
-generate-stamp:
-	mkdir -p $(BUILDROOT)
-	PYTHONPATH=$(CURDIR)/sphinxext:$(CURDIR)/..:$(PYTHONPATH) \
-		python sphinxext/autosummary/generate.py \
-		-t sphinxext/autosummary/templates -o source/generated source/*.rst
+api-clean:
+	rm -rf $(API_DIR)/*.rst
+
+api: api-stamp
+api-stamp:
+	@mkdir -p $(API_DIR)
+	$(PYTHON) tools/build_modref_templates.py nibabel $(API_DIR) False
+	@echo "Build API docs...done."
 	@touch $@
 
-html: generate
+html-only:
 	mkdir -p $(BUILDROOT)/html $(BUILDROOT)/doctrees
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDROOT)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDROOT)/html."
+
+html: api-stamp html-only
 
 pickle:
 	mkdir -p $(BUILDROOT)/pickle $(BUILDROOT)/doctrees
@@ -81,7 +89,7 @@ linkcheck:
 	@echo "Link check complete; look for any errors in the above output " \
 	      "or in $(BUILDROOT)/linkcheck/output.txt."
 
-doctest:
+doctest: api-clean
 	$(SPHINXBUILD) -b doctest $(ALLSPHINXOPTS) $(BUILDROOT)/doctest
 	@echo "Testing of doctests in the sources finished, look at the " \
 	      "results in _build/doctest/output.txt."
@@ -89,5 +97,5 @@ doctest:
 gitwash-update:
 	python ../tools/gitwash_dumper.py source nibabel --github-user=nipy \
 		--project-url=http://nipy.org/nibabel \
-		--project-ml-url=http://mail.scipy.org/mailman/listinfo/nipy-devel
+		--project-ml-url=https://mail.python.org/mailman/listinfo/neuroimaging
 
