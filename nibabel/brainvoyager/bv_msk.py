@@ -29,10 +29,8 @@ MSK_HDR_DICT_PROTO = (
 
 
 class BvMskHeader(BvFileHeader):
-    '''Class for BrainVoyager MSK header
-    '''
-    # copy of module-level template definition
-    template = msk_header_dtd
+
+    """Class for BrainVoyager MSK header."""
 
     # format defaults
     allowed_dtypes = [3]
@@ -94,7 +92,8 @@ class BvMskHeader(BvFileHeader):
 
 
 class BvMskImage(BvFileImage):
-    ''' Class for BrainVoyager MSK masks
+    """Class for BrainVoyager MSK masks.
+
     MSK files are technically binary images
     """
 

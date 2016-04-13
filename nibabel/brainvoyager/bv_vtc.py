@@ -14,7 +14,6 @@ http://support.brainvoyager.com/installation-introduction/23-file-formats/379-us
 Author: Thomas Emmerling
 """
 
-import numpy as np
 from .bv import BvError, BvFileHeader, BvFileImage
 from ..spatialimages import HeaderDataError
 from ..batteryrunners import Report
@@ -41,6 +40,11 @@ VTC_HDR_DICT_PROTO = (
 
 
 class BvVtcHeader(BvFileHeader):
+    """Header for Brainvoyager (BV) VTC files.
+
+    For documentation on the file format see:
+    http://support.brainvoyager.com/installation-introduction/23-file-formats/379-users-guide-23-the-format-of-vtc-files.html
+    """
 
     """
     Header for Brainvoyager (BV) VTC files.
@@ -180,6 +184,8 @@ class BvVtcHeader(BvFileHeader):
 
 
 class BvVtcImage(BvFileImage):
+    """Class for BrainVoyager VTC images."""
+
     # Set the class of the corresponding header
     header_class = BvVtcHeader
 
