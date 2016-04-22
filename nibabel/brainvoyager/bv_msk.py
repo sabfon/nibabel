@@ -101,6 +101,7 @@ class BvMskImage(BvFileImage):
 
     # Set the label ('image') and the extension ('.msk') for a MSK file
     files_types = (('image', '.msk'),)
+    valid_exts = ('.msk',)
 
 load = BvMskImage.load
 save = BvMskImage.instance_to_filename

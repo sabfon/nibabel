@@ -185,6 +185,7 @@ class BvVtcImage(BvFileImage):
 
     # Set the label ('image') and the extension ('.vtc') for a VTC file
     files_types = (('image', '.vtc'),)
+    valid_exts = ('.vtc',)
 
 load = BvVtcImage.load
 save = BvVtcImage.instance_to_filename

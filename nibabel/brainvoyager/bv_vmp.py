@@ -1,22 +1,41 @@
 # emacs: -*- mode: python-mode; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
+# ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
 #
 #   See COPYING file distributed along with the NiBabel package for the
 #   copyright and license terms.
 #
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
-''' Reading / writing functions for Brainvoyager (BV) VMP files
+# ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
+"""Reading / writing functions for Brainvoyager (BV) VMP files.
 
 for documentation on the file format see:
 http://support.brainvoyager.com/installation-introduction/23-file-formats/377-users-guide-23-the-format-of-nr-vmp-files.html
 
 Author: Thomas Emmerling
-'''
+"""
 
 import numpy as np
 from .bv import BvError, BvFileHeader, BvFileImage
 
+VMP_HDR_DICT_PROTO = (
+    ('version', 'h', 3),
+    ('fmr', 'z', b''),
+    ('nPrt', 'h', 0),
+    ('prts', (('filename', 'z', b''),), 'nPrt'),
+    ('currentPrt', 'h', 0),
+    ('datatype', 'h', 2),
+    ('volumes', 'h', 0),
+    ('Resolution', 'h', 3),
+    ('XStart', 'h', 57),
+    ('XEnd', 'h', 231),
+    ('YStart', 'h', 52),
+    ('YEnd', 'h', 172),
+    ('ZStart', 'h', 59),
+    ('ZEnd', 'h', 197),
+    ('LRConvention', 'b', 1),
+    ('RefSpace', 'b', 3),
+    ('TR', 'f', 2000.0)
+    )
 
 def _make_vmp_header_dtd(vtclt, prtlt, voilt):
     ''' Helper for creating a VMP header dtype with given parameters
@@ -501,6 +520,7 @@ class BvVmpImage(BvFileImage):
 
     # Set the label ('image') and the extension ('.vmp') for a VMP file
     files_types = (('image', '.vmp'),)
+    valid_exts = ('.vmp',)
 
 load = BvVmpImage.load
 save = BvVmpImage.instance_to_filename
