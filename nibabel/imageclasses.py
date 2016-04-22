@@ -1,11 +1,11 @@
 # emacs: -*- mode: python-mode; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
+# ## ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
 #
 #   See COPYING file distributed along with the NiBabel package for the
 #   copyright and license terms.
 #
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
+# ## ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
 ''' Define supported image classes and names '''
 import warnings
 
@@ -30,7 +30,8 @@ _, have_scipy, _ = optional_package('scipy')
 all_image_classes = [Nifti1Pair, Nifti1Image, Nifti2Pair, Nifti2Image,
                      Spm2AnalyzeImage, Spm99AnalyzeImage, AnalyzeImage,
                      Minc1Image, Minc2Image, MGHImage,
-                     PARRECImage, GiftiImage]
+                     PARRECImage, GiftiImage,
+                     BvMskImage, BvVtcImage, BvVmpImage]
 
 
 # DEPRECATED: mapping of names to classes and class functionality
