@@ -501,7 +501,11 @@ class BvFileHeader(Header):
         if offset is None:
             self.set_data_offset(calc_BV_header_size(
                 self.hdr_dict_proto, self._hdrDict))
-        self._framing_cube = self._guess_framing_cube()
+
+        if self._hdrDict.has_key('framingCube'):
+            self._framing_cube = self._hdrDict['framingCube']
+        else:
+            self._framing_cube = self._guess_framing_cube()
         if check:
             self.check_fix()
         return
