@@ -4,7 +4,6 @@ from ..testing import (assert_equal, assert_not_equal, assert_true,
                        assert_false, assert_raises, data_path)
 
 
-
 vmr_file = os.path.join(data_path, 'test.vmr')
 fileobj = open(vmr_file, 'r')
 test_file = eval(open(os.path.join(data_path, 'check_vmr.txt')).read()) #data obtained from NeuroElf
@@ -20,8 +19,6 @@ def compareValues(header, testHeader):
                 compareValues(header[key][i], testHeader[key][i] )
 
         assert_equal(header[key], testHeader[key])
-
-
 
 
 
