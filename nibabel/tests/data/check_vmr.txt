@@ -1,12 +1,12 @@
-dict(
-        version=4,
-        dimX=256,
-        dimY=256,
-        dimZ=256,
-        offsetX=0,
-        offsetY=0,
-        offsetZ=0,
-        framingCube=256,
+dict (
+				version=4,
+				dimX=3,
+				dimY=4,
+				dimZ=5,
+				offsetX=0,
+				offsetY=0,
+				offsetZ=0,
+				framingCube=256,
         posInfosVerified=0,
         coordSysEntry=1,
         slice1CenterX=127.5,
@@ -27,42 +27,73 @@ dict(
         foVColDir=256,
         sliceThick=1,
         gapThick=0,
-        nrOfPastSpatTrans=1,
-         pastST = [dict(
-             name='NoName',
-             type=2,
-             sourceFile='/home/test.vmr',
-             numTransVal = 16,
-             transfVal = [
-                 dict(value = 1.0,),
-                 dict(value = 0.0,),
-                 dict(value = 0.0,),
-                 dict(value = -1.0,),
+				nrOfPastSpatTrans=2,
+				pastST = [dict(
+								 name='NoName',
+								 type=2,
+								 sourceFile='/home/test.vmr',
+								 numTransVal = 16,
+								 transfVal = [
+															 dict(value = 1.0,),
+															 dict(value = 0.0,),
+															 dict(value = 0.0,),
+															 dict(value = -1.0,),
 
-                 dict(value = 0.0,),
-                 dict(value = 1.0,),
-                 dict(value = 0.0,),
-                 dict(value = 0.0,),
+															 dict(value = 0.0,),
+															 dict(value = 1.0,),
+															 dict(value = 0.0,),
+															 dict(value = 0.0,),
 
-                 dict(value = 0.0,),
-                 dict(value = 0.0,),
-                 dict(value = 1.0,),
-                 dict(value = -1.0,),
+															 dict(value = 0.0,),
+															 dict(value = 0.0,),
+															 dict(value = 1.0,),
+															 dict(value = -1.0,),
 
-                 dict(value = 0.0,),
-                 dict(value = 0.0,),
-                 dict(value = 0.0,),
-                 dict(value = 1.0,)
+															 dict(value = 0.0,),
+															 dict(value = 0.0,),
+															 dict(value = 0.0,),
+															 dict(value = 1.0,)
              ]
-         )],
-        lrConvention=1,
-        referenceSpace=0,
-        voxResX=1,
-        voxResY=1,
-        voxResZ=1,
-        flagVoxResolution=0,
+         ),
+         
+								 dict (
+												name='NoName',
+												type = 2,
+												sourceFile='/home/test_TRF.vmr',
+												numTransVal = 16,
+												
+												transfVal = [
+												 dict(value = 1.0,),
+												 dict(value = 0.0,),
+												 dict(value = 0.0,),
+												 dict(value = 1.0,),
+
+												 dict(value = 0.0,),
+												 dict(value = 1.0,),
+												 dict(value = 0.0,),
+												 dict(value = 1.0,),
+
+												 dict(value = 0.0,),
+												 dict(value = 0.0,),
+												 dict(value = 1.0,),
+												 dict(value = 0.0,),
+
+												 dict(value = 0.0,),
+												 dict(value = 0.0,),
+												 dict(value = 0.0,),
+												 dict(value = 1.0,)
+										 ]
+         )
+   
+         ],
+				lrConvention=1,
+				referenceSpace=0,
+				voxResX=1,
+				voxResY=1,
+				voxResZ=1,
+				flagVoxResolution=0,
         flagTalSpace=0,
         minIntensity=0,
         meanIntensity=127,
         maxIntensity=255,
-        )
+)
