@@ -55,7 +55,7 @@ dict (
 						dict(value = 1.0,)
                 			]
          		),
-         
+
 			dict (
 				name='NoName',
 				type = 2,
@@ -83,7 +83,7 @@ dict (
 						dict(value = 1.0,)
 						]
           			)
-   
+
          			],
 	lrConvention=1,
 	referenceSpace=0,
