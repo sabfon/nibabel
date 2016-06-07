@@ -27,12 +27,12 @@ VMR_PRHDR_DICT_PROTO = (
 )
 
 VMR_PSHDR_DICT_PROTO = (
-    ('xOffset', 'h', 0),
-    ('yOffset', 'h', 0),
-    ('zOffsed', 'h', 0),
+    ('offsetX', 'h', 0),
+    ('offsetY', 'h', 0),
+    ('offsetZ', 'h', 0),
     ('framingCube', 'h', 256),
     ('posInfosVerified','i',0),
-    ('CoordSysEntry','i', 1),
+    ('coordSysEntry','i', 1),
     ('slice1CenterX','f', 127.5),
     ('slice1CenterY','f', 0),
     ('slice1CenterZ', 'f',0),
@@ -49,13 +49,13 @@ VMR_PSHDR_DICT_PROTO = (
     ('nrColSlice','i', 256),
     ('foVRowDir','f', 256),
     ('foVColDir','f', 256),
-    ('SliceThick','f', 1),
-    ('GapThick','f', 0),
+    ('sliceThick','f', 1),
+    ('gapThick','f', 0),
     ('nrOfPastSpatTrans','i', 0),
     ('pastST', (('name', 'z', b''),('type', 'i', b''),('sourceFile','z',b''),
                 ('numTransVal','i',b''),('transfVal', (('value', 'f', b''),), 'numTransVal')),
      'nrOfPastSpatTrans'),
-    ('LRConvention','b', 1),
+    ('lrConvention','b', 1),
     ('referenceSpace','b', 0),
     ('voxResX','f', 1),
     ('voxResY','f', 1),
@@ -119,15 +119,15 @@ class VmrHeader(BvFileHeader):
 
     def set_xflip(self, xflip):
         if xflip is True:
-            self._hdrDict['LRConvention'] = 1
+            self._hdrDict['lrConvention'] = 1
         elif xflip is False:
-            self._hdrDict['LRConvention'] = 2
+            self._hdrDict['lrConvention'] = 2
         else:
-            self._hdrDict['LRConvention'] = 0
+            self._hdrDict['lrConvention'] = 0
 
 
     def get_xflip(self):
-        xflip = int(self._hdrDict['LRConvention'])
+        xflip = int(self._hdrDict['lrConvention'])
         if xflip == 1:
             return True
         elif xflip == 2:
@@ -236,10 +236,6 @@ class VmrHeader(BvFileHeader):
         if fix:
             rep.fix_msg = 'not attempting fix'
         return hdr, rep
-
-
-
-
 
 
 
