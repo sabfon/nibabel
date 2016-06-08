@@ -1,4 +1,5 @@
 import os
+import ast
 from .. brainvoyager.bv_vmr import *
 from ..testing import (assert_equal, assert_not_equal, assert_true,
                        assert_false, assert_raises, data_path)
@@ -6,7 +7,7 @@ from ..testing import (assert_equal, assert_not_equal, assert_true,
 
 vmr_file = os.path.join(data_path, 'test.vmr')
 fileobj = open(vmr_file, 'r')
-test_file = eval(open(os.path.join(data_path, 'check_vmr.txt')).read()) #data obtained from NeuroElf
+test_file = ast.literal_eval(open(os.path.join(data_path, 'check_vmr.txt')).read()) #data obtained from NeuroElf
 #vmr_empty = os.path.join(data_path, 'test_toWrite.vmr')
 #fileobjW = open(vmr_empty, 'w')
 
