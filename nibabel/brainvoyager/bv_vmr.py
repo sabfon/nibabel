@@ -81,7 +81,7 @@ def concatePrePos(preDict, posDict):
 
 
 
-class VmrHeader(BvFileHeader):
+class BvVmrHeader(BvFileHeader):
     default_endianness = '<'
     hdr_dict_proto = VMR_PRHDR_DICT_PROTO + VMR_PSHDR_DICT_PROTO
 
@@ -240,14 +240,14 @@ class VmrHeader(BvFileHeader):
 
 
 """Class for BrainVoyager VMR images."""
-class VMRImage(BvFileImage):
+class BvVmrImage(BvFileImage):
 
     # Set the class of the corresponding header
-    header_class = VmrHeader
+    header_class = BvVmrHeader
 
     # Set the label ('image') and the extension ('.vtc') for a VMR file
     files_types = (('image', '.vmr'),)
 
 
-load = VMRImage.load
-save = VMRImage.instance_to_filename
+load = BvVmrImage.load
+save = BvVmrImage.instance_to_filename
