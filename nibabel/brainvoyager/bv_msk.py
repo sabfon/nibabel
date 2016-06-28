@@ -72,11 +72,11 @@ class BvMskHeader(BvFileHeader):
             if len(shape) != 3:
                 raise BvError('Shape for MSK files must be 3 dimensional!')
             self._hdrDict['XEnd'] = \
-                57 + (shape[2] * self._hdrDict['Resolution'])
+                self._hdrDict['XStart'] + (shape[2] * self._hdrDict['Resolution'])
             self._hdrDict['YEnd'] = \
-                52 + (shape[1] * self._hdrDict['Resolution'])
+                self._hdrDict['YStart'] + (shape[1] * self._hdrDict['Resolution'])
             self._hdrDict['ZEnd'] = \
-                59 + (shape[0] * self._hdrDict['Resolution'])
+                self._hdrDict['ZStart'] + (shape[0] * self._hdrDict['Resolution'])
             return
         self._hdrDict['XStart'] = zyx[0][0]
         self._hdrDict['XEnd'] = zyx[0][1]
