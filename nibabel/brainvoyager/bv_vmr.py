@@ -14,7 +14,8 @@ http://support.brainvoyager.com/automation-aamp-development/23-file-formats/385-
 Author: Sabrina Fontanella
 """
 
-from .bv import BvError, BvFileHeader, BvFileImage, parse_BV_header, pack_BV_header, calc_BV_header_size
+from .bv import (BvError, BvFileHeader, BvFileImage, parse_BV_header,
+                 pack_BV_header, calc_BV_header_size)
 from ..spatialimages import HeaderDataError
 from ..batteryrunners import Report
 
@@ -31,49 +32,51 @@ VMR_PSHDR_DICT_PROTO = (
     ('offsetY', 'h', 0),
     ('offsetZ', 'h', 0),
     ('framingCube', 'h', 256),
-    ('posInfosVerified','i',0),
-    ('coordSysEntry','i', 1),
-    ('slice1CenterX','f', 127.5),
-    ('slice1CenterY','f', 0),
-    ('slice1CenterZ', 'f',0),
-    ('sliceNCenterX','f', -127.5),
-    ('sliceNCenterY','f', 0),
-    ('SliceNCenterZ','f', 0),
+    ('posInfosVerified', 'i', 0),
+    ('coordSysEntry', 'i', 1),
+    ('slice1CenterX', 'f', 127.5),
+    ('slice1CenterY', 'f', 0),
+    ('slice1CenterZ', 'f', 0),
+    ('sliceNCenterX', 'f', -127.5),
+    ('sliceNCenterY', 'f', 0),
+    ('SliceNCenterZ', 'f', 0),
     ('sliceRowDirX', 'f', 0),
-    ('sliceRowDirY', 'f',1),
-    ('sliceRowDirZ', 'f',0),
-    ('sliceColDirX', 'f',0),
-    ('sliceColDirY', 'f',0),
-    ('sliceColDirZ','f', -1),
-    ('nrRowsSlice','i', 256),
-    ('nrColSlice','i', 256),
-    ('foVRowDir','f', 256),
-    ('foVColDir','f', 256),
-    ('sliceThick','f', 1),
-    ('gapThick','f', 0),
-    ('nrOfPastSpatTrans','i', 0),
+    ('sliceRowDirY', 'f', 1),
+    ('sliceRowDirZ', 'f', 0),
+    ('sliceColDirX', 'f', 0),
+    ('sliceColDirY', 'f', 0),
+    ('sliceColDirZ', 'f', -1),
+    ('nrRowsSlice', 'i', 256),
+    ('nrColSlice', 'i', 256),
+    ('foVRowDir', 'f', 256),
+    ('foVColDir', 'f', 256),
+    ('sliceThick', 'f', 1),
+    ('gapThick', 'f', 0),
+    ('nrOfPastSpatTrans', 'i', 0),
     ('pastST', (
         ('name', 'z', b''),
         ('type', 'i', b''),
-        ('sourceFile','z',b''),
-        ('numTransVal','i',b''),
+        ('sourceFile', 'z', b''),
+        ('numTransVal', 'i', b''),
         ('transfVal', (('value', 'f', b''),), 'numTransVal')
-    ),'nrOfPastSpatTrans'),
-    ('lrConvention','B', 1),
-    ('referenceSpace','B', 0),
-    ('voxResX','f', 1),
-    ('voxResY','f', 1),
-    ('voxResZ','f', 1),
-    ('flagVoxResolution','B',0),
-    ('flagTalSpace','B', 0),
-    ('minIntensity','i', 0),
-    ('meanIntensity','i', 127),
-    ('maxIntensity','i', 255)
+    ), 'nrOfPastSpatTrans'),
+    ('lrConvention', 'B', 1),
+    ('referenceSpace', 'B', 0),
+    ('voxResX', 'f', 1),
+    ('voxResY', 'f', 1),
+    ('voxResZ', 'f', 1),
+    ('flagVoxResolution', 'B', 0),
+    ('flagTalSpace', 'B', 0),
+    ('minIntensity', 'i', 0),
+    ('meanIntensity', 'i', 127),
+    ('maxIntensity', 'i', 255)
 )
+
 
 def computeOffsetPostHDR(hdrDict, fileobj):
     currentSeek = fileobj.tell()
     return currentSeek + (hdrDict['dimX']*hdrDict['dimY']*hdrDict['dimZ'])
+
 
 def concatePrePos(preDict, posDict):
     temp = preDict.copy()
@@ -82,7 +85,6 @@ def concatePrePos(preDict, posDict):
 
 
 class BvVmrHeader(BvFileHeader):
-
     """Class for BrainVoyager VMR header."""
 
     # format defaults
@@ -94,9 +96,9 @@ class BvVmrHeader(BvFileHeader):
     def get_data_shape(self):
         hdr = self._hdrDict
         # calculate dimensions
-        z =  hdr['dimZ']
-        y =  hdr['dimY']
-        x =  hdr['dimX']
+        z = hdr['dimZ']
+        y = hdr['dimY']
+        x = hdr['dimX']
         return tuple(int(d) for d in [z, y, x])
 
     def set_data_shape(self, shape=None, zyx=None):
@@ -113,7 +115,7 @@ class BvVmrHeader(BvFileHeader):
             return
         self._hdrDict['dimX'] = zyx[2][1] - zyx[2][0]
         self._hdrDict['dimY'] = zyx[1][1] - zyx[1][0]
-        self._hDict['dimZ'] =  zyx[0][1] - zyx[0][0]
+        self._hDict['dimZ'] = zyx[0][1] - zyx[0][0]
 
     def set_data_offset(self, offset):
         """Set offset into data file to read data.
@@ -157,7 +159,8 @@ class BvVmrHeader(BvFileHeader):
     def from_fileobj(klass, fileobj, endianness=default_endianness,
                      check=True):
         hdrDictPre = parse_BV_header(VMR_PRHDR_DICT_PROTO, fileobj)
-        newSeek = computeOffsetPostHDR(hdrDictPre,fileobj) #calculate new seek for the post data header
+        # calculate new seek for the post data header
+        newSeek = computeOffsetPostHDR(hdrDictPre, fileobj)
         fileobj.seek(newSeek)
         hdrDictPos = parse_BV_header(VMR_PSHDR_DICT_PROTO, fileobj)
         hdrDict = concatePrePos(hdrDictPre, hdrDictPos)
@@ -169,14 +172,15 @@ class BvVmrHeader(BvFileHeader):
         """Get the center coordinate of the bounding box.
            Not required for VMR files
         """
-        return 0,0,0
+        return 0, 0, 0
 
     def get_zooms(self):
-        return (self._hdrDict['voxResX'], self._hdrDict['voxResY'], self._hdrDict['voxResZ'])
+        return (self._hdrDict['voxResX'], self._hdrDict['voxResY'],
+                self._hdrDict['voxResZ'])
 
     def set_zooms(self, zooms):
-       #check if the input type is correct
-        if all(isinstance(i, float) for i in zooms) == False:
+        # check if the input type is correct
+        if all(isinstance(i, float) for i in zooms) is False:
             raise BvError('Zooms for VMR files must be float values!')
         if len(zooms) != 3:
             raise BvError('Zooms for VMR files must be 3 values!')
@@ -186,8 +190,10 @@ class BvVmrHeader(BvFileHeader):
 
     def write_to(self, fileobj):
         binaryblock = pack_BV_header(self.hdr_dict_proto, self._hdrDict)
-        sizePrH = calc_BV_header_size(VMR_PRHDR_DICT_PROTO, self._hdrDict) #calculate size of preDataHeader
-        fileobj.write(binaryblock[0:sizePrH]) #write the preHeader
+        # calculate size of preDataHeader
+        sizePrH = calc_BV_header_size(VMR_PRHDR_DICT_PROTO, self._hdrDict)
+        # write the preHeader
+        fileobj.write(binaryblock[0:sizePrH])
         fileobj.seek(computeOffsetPostHDR(self._hdrDict, fileobj))
         fileobj.write(binaryblock[sizePrH:])
 
