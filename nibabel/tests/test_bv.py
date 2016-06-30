@@ -6,44 +6,19 @@
 #   copyright and license terms.
 #
 # ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
-"""Test Analyze headers.
-
-See test_wrapstruct.py for tests of the wrapped structarr-ness of the Analyze
-header
-"""
+"""Test main BV module."""
 
 import os
-import re
-import logging
-import pickle
 import tempfile
+from ..brainvoyager.bv import (readCString, parse_BV_header, pack_BV_header,
+                               calc_BV_header_size)
+from ..brainvoyager.bv_vtc import VTC_HDR_DICT_PROTO
+from ..testing import (assert_equal, data_path)
 
-import numpy as np
-
-from ..externals.six import BytesIO, StringIO
-from ..volumeutils import array_to_file
-from ..spatialimages import (HeaderDataError, HeaderTypeError)
-from ..bv import (readCString, parse_BV_header, pack_BV_header,\
-                  calc_BV_header_size)
-from ..bv_vtc import VtcHeader, VtcImage, VTC_HDR_DICT_PROTO
-from ..bv_msk import MskHeader, MskImage
-from ..bv_vmp import VmpHeader, VmpImage
-from ..nifti1 import Nifti1Header
-from ..loadsave import read_img_data
-from ..import imageglobals
-from ..casting import as_int
-
-from numpy.testing import (assert_array_equal,
-                           assert_array_almost_equal)
-
-from ..testing import (assert_equal, assert_not_equal, assert_true,
-                       assert_false, assert_raises, data_path)
-
-from .test_wrapstruct import _TestLabeledWrapStruct
-from . import test_spatialimages as tsi
 
 vtc_file = os.path.join(data_path, 'test.vtc')
 vmp_file = os.path.join(data_path, 'test.vmp')
+
 
 def test_readCString():
     # sample binary block
@@ -70,13 +45,15 @@ def test_readCString():
         fread.seek(0)
 
         # test readout of two strings
-        assert_equal([s for s in readCString(fread, 2, rewind=True)], ['test.fmr', 'test.prt'])
+        assert_equal([s for s in readCString(fread, 2, rewind=True)],
+                     ['test.fmr', 'test.prt'])
 
         # test automatic rewind
         assert_equal(fread.tell(), 0)
 
         # test readout of two strings with trailing zeros
-        assert_equal([s for s in readCString(fread, 2, strip=False)], ['test.fmr\x00', 'test.prt\x00'])
+        assert_equal([s for s in readCString(fread, 2, strip=False)],
+                     ['test.fmr\x00', 'test.prt\x00'])
 
         # test new file position
         assert_equal(fread.tell(), 18)
@@ -89,6 +66,7 @@ def test_readCString():
         raise
     os.remove(path)
 
+
 def test_parse_BV_header():
     # open vtc test file
     fileobj = open(vtc_file, 'r')
@@ -97,12 +75,17 @@ def test_parse_BV_header():
     assert_equal(hdrDict['XStart'], 120)
     assert_equal(hdrDict['TR'], 2000.0)
 
+
 def test_pack_BV_header():
     # open vtc test file
     fileobj = open(vtc_file, 'r')
     hdrDict = parse_BV_header(VTC_HDR_DICT_PROTO, fileobj)
     binaryblock = pack_BV_header(VTC_HDR_DICT_PROTO, hdrDict)
-    assert_equal(binaryblock, '\x03\x00test.fmr\x00\x01\x00test.prt\x00\x00\x00\x02\x00\x05\x00\x03\x00x\x00\x96\x00x\x00\x96\x00x\x00\x96\x00\x01\x01\x00\x00\xfaD')
+    assert_equal(binaryblock, ''.join([
+        '\x03\x00test.fmr\x00\x01\x00test.prt\x00\x00\x00\x02\x00\x05\x00\x03',
+        '\x00x\x00\x96\x00x\x00\x96\x00x\x00\x96\x00\x01\x01\x00\x00\xfaD'
+    ]))
+
 
 def test_calc_BV_header_size():
     # open vtc test file
@@ -110,7 +93,3 @@ def test_calc_BV_header_size():
     hdrDict = parse_BV_header(VTC_HDR_DICT_PROTO, fileobj)
     hdrSize = calc_BV_header_size(VTC_HDR_DICT_PROTO, hdrDict)
     assert_equal(hdrSize, 48)
-
-def test_VtcImage():
-    # load vtc image from filename
-    vtc = VtcImage.from_filename(vtc_file)
