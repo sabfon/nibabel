@@ -250,7 +250,7 @@ class BvVmrImage(BvFileImage):
 
     # Set the label ('image') and the extension ('.vtc') for a VMR file
     files_types = (('image', '.vmr'),)
-
+    valid_exts = ('.vmr',)
 
 load = BvVmrImage.load
 save = BvVmrImage.instance_to_filename

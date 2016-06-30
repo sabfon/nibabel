@@ -20,7 +20,7 @@ from .parrec import PARRECImage
 from .spm99analyze import Spm99AnalyzeImage
 from .spm2analyze import Spm2AnalyzeImage
 from .volumeutils import Recoder
-from .brainvoyager import BvMskImage, BvVtcImage, BvVmpImage
+from .brainvoyager import BvMskImage, BvVtcImage, BvVmpImage, BvVmrImage
 
 from .optpkg import optional_package
 _, have_scipy, _ = optional_package('scipy')
@@ -31,7 +31,7 @@ all_image_classes = [Nifti1Pair, Nifti1Image, Nifti2Pair, Nifti2Image,
                      Spm2AnalyzeImage, Spm99AnalyzeImage, AnalyzeImage,
                      Minc1Image, Minc2Image, MGHImage,
                      PARRECImage, GiftiImage,
-                     BvMskImage, BvVtcImage, BvVmpImage]
+                     BvMskImage, BvVtcImage, BvVmpImage, BvVmrImage]
 
 
 # DEPRECATED: mapping of names to classes and class functionality
@@ -95,6 +95,10 @@ class_map = ClassMapDict(
          'ext': '.vmp',
          'has_affine': True,
          'rw': True},
+    vmr={'class': BvVmrImage,
+         'ext': '.vmr',
+         'has_affine': True,
+         'rw': True},
     par={'class': PARRECImage,
          'ext': '.par',
          'has_affine': True,
@@ -119,5 +123,6 @@ ext_map = ExtMapRecoder((
     ('par', '.par'),
     ('vtc', '.vtc'),
     ('msk', '.msk'),
-    ('vmp', '.vmp')
+    ('vmp', '.vmp'),
+    ('vmr', '.vmr'),
 ))
