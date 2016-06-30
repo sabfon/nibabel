@@ -29,7 +29,6 @@ MSK_HDR_DICT_PROTO = (
 
 
 class BvMskHeader(BvFileHeader):
-
     """Class for BrainVoyager MSK header."""
 
     # format defaults
@@ -71,12 +70,12 @@ class BvMskHeader(BvFileHeader):
             # Dimensions will start from standard coordinates.
             if len(shape) != 3:
                 raise BvError('Shape for MSK files must be 3 dimensional!')
-            self._hdrDict['XEnd'] = \
-                self._hdrDict['XStart'] + (shape[2] * self._hdrDict['Resolution'])
-            self._hdrDict['YEnd'] = \
-                self._hdrDict['YStart'] + (shape[1] * self._hdrDict['Resolution'])
-            self._hdrDict['ZEnd'] = \
-                self._hdrDict['ZStart'] + (shape[0] * self._hdrDict['Resolution'])
+            self._hdrDict['XEnd'] = self._hdrDict['XStart'] + \
+                (shape[2] * self._hdrDict['Resolution'])
+            self._hdrDict['YEnd'] = self._hdrDict['YStart'] + \
+                (shape[1] * self._hdrDict['Resolution'])
+            self._hdrDict['ZEnd'] = self._hdrDict['ZStart'] + \
+                (shape[0] * self._hdrDict['Resolution'])
             return
         self._hdrDict['XStart'] = zyx[0][0]
         self._hdrDict['XEnd'] = zyx[0][1]
