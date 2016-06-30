@@ -1,4 +1,6 @@
 import os
+from os.path import join as pjoin
+import numpy as np
 import ast
 from .. brainvoyager.bv_vmr import *
 from ..testing import (assert_equal, assert_not_equal, assert_true,
@@ -8,8 +10,26 @@ from ..testing import (assert_equal, assert_not_equal, assert_true,
 vmr_file = os.path.join(data_path, 'test.vmr')
 fileobj = open(vmr_file, 'r')
 test_file = ast.literal_eval(open(os.path.join(data_path, 'test_vmr_header.txt')).read()) #data obtained from NeuroElf
-#vmr_empty = os.path.join(data_path, 'test_toWrite.vmr')
-#fileobjW = open(vmr_empty, 'w')
+
+# Example images in format expected for ``test_image_api``, adding ``zooms``
+# item.
+EXAMPLE_IMAGES = [
+    dict(
+        fname=pjoin(data_path, 'test.vmr'),
+        shape=(5, 4, 3),
+        dtype=np.uint8,
+        affine=np.array([[-3., 0, 0, -21.],
+                         [0, 0, -3., -21.],
+                         [0, -3., 0, -21.],
+                         [0, 0, 0, 1.]]),
+        zooms=(3., 3., 3.),
+        # These values are from NeuroElf
+        data_summary=dict(
+            min=7,
+            max=218,
+            mean=120.3),
+        is_proxy=True)
+]
 
 
 def compareValues(header, testHeader):
@@ -21,27 +41,12 @@ def compareValues(header, testHeader):
 
         assert_equal(header[key], testHeader[key])
 
-
-
 def test_parse_VMR_header():
-    vmr = VmrHeader()
+    vmr = BvVmrHeader()
     header = vmr.from_fileobj(fileobj)
     header = header._hdrDict
 
     compareValues(header, test_file)
-
-
-def test_VMRImage():
-    vmr = VMRImage.from_filename(vmr_file)
-    print(vmr)
-
-def test_right_input():
-    vmr = VmrHeader()
-    vmr.set_zooms((0.1,0.1,0.1))
-    a = [1.0, 1.0, 1.0]
-    vmr.set_zooms(a)
-    vmr.set_zooms((float(1),float(1),float(1)))
-
 
 def test_wrong_input():
     vmr = VmrHeader()
@@ -56,19 +61,3 @@ def test_wrong_input():
     except BvError:
         print ("Wrong number of input parameter for set_zoom")
         pass
-
-def test_write_to():
-    fileobj = fileobj = open(vmr_file, 'r')
-    vmrHead = VmrHeader()
-    hdrDict = (vmrHead.from_fileobj(fileobj))._hdrDict
-    binaryblock = pack_BV_header(VMR_PRHDR_DICT_PROTO+VMR_PSHDR_DICT_PROTO, hdrDict)
-    #vmrHead.write_to(fileobjW)
-
-
-
-
-
-
-
-
-
