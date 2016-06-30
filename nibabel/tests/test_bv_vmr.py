@@ -1,15 +1,11 @@
-import os
 from os.path import join as pjoin
 import numpy as np
-import ast
-from .. brainvoyager.bv_vmr import *
-from ..testing import (assert_equal, assert_not_equal, assert_true,
-                       assert_false, assert_raises, data_path)
+from ..brainvoyager.bv import BvError
+from ..brainvoyager.bv_vmr import BvVmrImage, BvVmrHeader
+from ..testing import (assert_equal, data_path)
+from ..externals import OrderedDict
 
-
-vmr_file = os.path.join(data_path, 'test.vmr')
-fileobj = open(vmr_file, 'r')
-test_file = ast.literal_eval(open(os.path.join(data_path, 'test_vmr_header.txt')).read()) #data obtained from NeuroElf
+vmr_file = pjoin(data_path, 'test.vmr')
 
 # Example images in format expected for ``test_image_api``, adding ``zooms``
 # item.
@@ -31,25 +27,113 @@ EXAMPLE_IMAGES = [
         is_proxy=True)
 ]
 
+EXAMPLE_HDR = OrderedDict({
+    'version': 4,
+    'dimX': 3,
+    'dimY': 4,
+    'dimZ': 5,
+    'offsetX': 0,
+    'offsetY': 0,
+    'offsetZ': 0,
+    'framingCube': 256,
+    'posInfosVerified': 0,
+    'coordSysEntry': 1,
+    'slice1CenterX': 127.5,
+    'slice1CenterY': 0,
+    'slice1CenterZ': 0,
+    'sliceNCenterX': -127.5,
+    'sliceNCenterY': 0,
+    'SliceNCenterZ': 0,
+    'sliceRowDirX': 0,
+    'sliceRowDirY': 1,
+    'sliceRowDirZ': 0,
+    'sliceColDirX': 0,
+    'sliceColDirY': 0,
+    'sliceColDirZ': -1,
+    'nrRowsSlice': 256,
+    'nrColSlice': 256,
+    'foVRowDir': 256,
+    'foVColDir': 256,
+    'sliceThick': 1,
+    'gapThick': 0,
+    'nrOfPastSpatTrans': 2,
+    'pastST': [{
+        'name': 'NoName',
+        'type': 2,
+        'sourceFile': '/home/test.vmr',
+        'numTransVal': 16,
+        'transfVal': [
+                {'value': 1.0},
+                {'value': 0.0},
+                {'value': 0.0},
+                {'value': -1.0},
+                {'value': 0.0},
+                {'value': 1.0},
+                {'value': 0.0},
+                {'value': 0.0},
+                {'value': 0.0},
+                {'value': 0.0},
+                {'value': 1.0},
+                {'value': -1.0},
+                {'value': 0.0},
+                {'value': 0.0},
+                {'value': 0.0},
+                {'value': 1.0}
+        ],
+    },
+        {
+        'name': 'NoName',
+                'type': 2,
+                'sourceFile': '/home/test_TRF.vmr',
+                'numTransVal': 16,
+                'transfVal': [
+                    {'value': 1.0},
+                    {'value': 0.0},
+                    {'value': 0.0},
+                    {'value': 1.0},
+                    {'value': 0.0},
+                    {'value': 1.0},
+                    {'value': 0.0},
+                    {'value': 1.0},
+                    {'value': 0.0},
+                    {'value': 0.0},
+                    {'value': 1.0},
+                    {'value': 0.0},
+                    {'value': 0.0},
+                    {'value': 0.0},
+                    {'value': 0.0},
+                    {'value': 1.0}
+                ]
+    }],
+    'lrConvention': 1,
+    'referenceSpace': 0,
+    'voxResX': 1,
+    'voxResY': 1,
+    'voxResZ': 1,
+    'flagVoxResolution': 0,
+    'flagTalSpace': 0,
+    'minIntensity': 0,
+    'meanIntensity': 127,
+    'maxIntensity': 255,
+})
+
 
 def compareValues(header, testHeader):
     for key in header:
         if (type(header[key]) is list):
             num = len(testHeader[key])
-            for i in range(0,num):
-                compareValues(header[key][i], testHeader[key][i] )
-
+            for i in range(0, num):
+                compareValues(header[key][i], testHeader[key][i])
         assert_equal(header[key], testHeader[key])
 
-def test_parse_VMR_header():
-    vmr = BvVmrHeader()
-    header = vmr.from_fileobj(fileobj)
-    header = header._hdrDict
 
-    compareValues(header, test_file)
+def test_parse_BVVMR_header():
+    vmr = BvVmrImage.from_filename(vmr_file)
+    compareValues(vmr.header._hdrDict, EXAMPLE_HDR)
+
 
 def test_wrong_input():
-    vmr = VmrHeader()
+    vmr = BvVmrHeader()
     try:
         vmr.set_zooms(('a', 2.0, 3))
     except BvError:
