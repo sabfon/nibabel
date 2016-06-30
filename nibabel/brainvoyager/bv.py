@@ -234,28 +234,6 @@ def calc_BV_header_size(hdr_dict_proto, hdr_dict):
     return hdr_size
 
 
-def _proto2default(proto):
-    """Helper for creating a VTC header OrderedDict with default parameters.
-
-    Create an OrderedDict that contains keys with the header fields, and
-    default values.
-
-    See :func:`parse_BV_header` for description of `proto` format.
-    """
-    default_hdr = OrderedDict()
-    for name, format, def_or_name in proto:
-        default_hdr[name] = {}
-        if isinstance(format, tuple):
-            value = _proto2default(format)
-            default_hdr[name] = [value]
-        else:
-            if isinstance(def_or_name, tuple):
-                default_hdr[name] = def_or_name[0]
-            else:
-                default_hdr[name] = def_or_name
-    return default_hdr
-
-
 def readCString(f, nStrings=1, bufsize=1000, startPos=None, strip=True,
                 rewind=False):
     """Read a zero-terminated string from a file object.
@@ -307,7 +285,7 @@ def readCString(f, nStrings=1, bufsize=1000, startPos=None, strip=True,
     return str_list
 
 
-def parse_BV_header(hdr_dict_proto, fileobj):
+def parse_BV_header(hdr_dict_proto, fileobj, parent_hdr_dict=None):
     """Parse the header of a BV file format.
 
     This function can be (and is) called recursively to iterate through nested
@@ -318,8 +296,12 @@ def parse_BV_header(hdr_dict_proto, fileobj):
     hdr_dict_proto: tuple
         tuple of format described in Notes below.
     fileobj : fileobj
-       File object to use. Make sure that the current position is at the
-       beginning of the header (e.g. at 0).
+        File object to use. Make sure that the current position is at the
+        beginning of the header (e.g. at 0).
+    parent_hdr_dict: tuple
+        When parse_BV_header() is called recursively the already filled
+        (parent) hdr_dict is passed to give access to n_fields_name fields
+        outside the current scope (see below).
 
     Notes
     -----
@@ -341,7 +323,10 @@ def parse_BV_header(hdr_dict_proto, fileobj):
     The pack_format codes have meaning::
 
         b := signed char (1 byte)
+        B := unsigned char (1 byte)
         h := signed short integer (2 bytes)
+        i := signed integer (4 bytes)
+        I := unsigned integer (4 bytes)
         f := float (4 bytes)
         z := zero-terminated string (variable bytes)
 
@@ -357,9 +342,18 @@ def parse_BV_header(hdr_dict_proto, fileobj):
         # handle array fields
         elif isinstance(format, tuple):
             value = []
-            n_values = hdr_dict[def_or_name]
+            # check the length of the array to expect
+            if hdr_dict.has_key(def_or_name):
+                n_values = hdr_dict[def_or_name]
+            else:
+                n_values = parent_hdr_dict[def_or_name]
             for i in range(n_values):
-                value.append(parse_BV_header(format, fileobj))
+                value.append(parse_BV_header(format, fileobj, hdr_dict))
+        # handle conditional fields
+        elif isinstance(def_or_name, tuple):
+            if hdr_dict[def_or_name[1]] == def_or_name[2]:
+                bytes = fileobj.read(calcsize(format))
+                value = unpack('<' + format, bytes)[0]
         else:  # pack string format
             bytes = fileobj.read(calcsize(format))
             value = unpack('<' + format, bytes)[0]
@@ -367,7 +361,7 @@ def parse_BV_header(hdr_dict_proto, fileobj):
     return hdr_dict
 
 
-def pack_BV_header(hdr_dict_proto, hdr_dict):
+def pack_BV_header(hdr_dict_proto, hdr_dict, parent_hdr_dict=None):
     """Pack the header of a BV file format into a byte string.
 
     This function can be (and is) called recursively to iterate through nested
@@ -380,6 +374,10 @@ def pack_BV_header(hdr_dict_proto, hdr_dict):
     hdrDict: OrderedDict
        hdrDict that contains the fields and values to for the respective
        BV file format.
+    parent_hdr_dict: tuple
+       When parse_BV_header() is called recursively the already filled
+       (parent) hdr_dict is passed to give access to n_fields_name fields
+       outside the current scope (see below).
 
     Returns
     -------
@@ -395,18 +393,25 @@ def pack_BV_header(hdr_dict_proto, hdr_dict):
         # handle array fields
         elif isinstance(format, tuple):
             # check the length of the array to expect
-            n_values = hdr_dict[def_or_name]
+            if hdr_dict.has_key(def_or_name):
+                n_values = hdr_dict[def_or_name]
+            else:
+                n_values = parent_hdr_dict[def_or_name]
             sub_parts = []
             for i in range(n_values):
-                sub_parts.append(pack_BV_header(format, value[i]))
+                sub_parts.append(pack_BV_header(format, value[i], hdr_dict))
             part = b''.join(sub_parts)
+        # handle conditional fields
+        elif isinstance(def_or_name, tuple):
+            if hdr_dict[def_or_name[1]] == def_or_name[2]:
+                part = pack('<' + format, value)
         else:
             part = pack('<' + format, value)
         binary_parts.append(part)
     return b''.join(binary_parts)
 
 
-def calc_BV_header_size(hdr_dict_proto, hdr_dict):
+def calc_BV_header_size(hdr_dict_proto, hdr_dict, parent_hdr_dict=None):
     """Calculate the binary size of a hdrDict for a BV file format header.
 
     This function can be (and is) called recursively to iterate through nested
@@ -419,6 +424,10 @@ def calc_BV_header_size(hdr_dict_proto, hdr_dict):
     hdrDict: OrderedDict
        hdrDict that contains the fields and values to for the respective
        BV file format.
+    parent_hdr_dict: tuple
+       When parse_BV_header() is called recursively the already filled
+       (parent) hdr_dict is passed to give access to n_fields_name fields
+       outside the current scope (see below).
 
     Returns
     -------
@@ -434,15 +443,50 @@ def calc_BV_header_size(hdr_dict_proto, hdr_dict):
         # handle array fields
         elif isinstance(format, tuple):
             # check the length of the array to expect
-            n_values = hdr_dict[def_or_name]
+            if hdr_dict.has_key(def_or_name):
+                n_values = hdr_dict[def_or_name]
+            else:
+                n_values = parent_hdr_dict[def_or_name]
             for i in range(n_values):
                 # recursively iterate through the fields of all items
                 # in the array
-                hdr_size += calc_BV_header_size(format, value[i])
+                hdr_size += calc_BV_header_size(format, value[i], hdr_dict)
+        # handle conditional fields
+        elif isinstance(def_or_name, tuple):
+            if hdr_dict[def_or_name[1]] == def_or_name[2]:
+                hdr_size += calcsize(format)
         else:
             hdr_size += calcsize(format)
     return hdr_size
 
+def _proto2default(proto, parent_default_hdr=None):
+    """Helper for creating a VTC header OrderedDict with default parameters.
+
+    Create an OrderedDict that contains keys with the header fields, and
+    default values.
+
+    See :func:`parse_BV_header` for description of `proto` format.
+    """
+    default_hdr = OrderedDict()
+    for name, format, def_or_name in proto:
+        default_hdr[name] = {}
+        if isinstance(format, tuple):
+            value = []
+            # check the length of the array to expect
+            if default_hdr.has_key(def_or_name):
+                n_values = default_hdr[def_or_name]
+            else:
+                n_values = parent_default_hdr[def_or_name]
+            for i in range(n_values):
+                value.append(_proto2default(format, default_hdr))
+            default_hdr[name] = value
+        # handle conditional fields
+        elif isinstance(def_or_name, tuple):
+            if default_hdr[def_or_name[1]] == def_or_name[2]:
+                default_hdr[name] = def_or_name[0]
+        else:
+            default_hdr[name] = def_or_name
+    return default_hdr
 
 class BvError(Exception):
 
