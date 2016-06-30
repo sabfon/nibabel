@@ -52,23 +52,24 @@ VMR_PSHDR_DICT_PROTO = (
     ('sliceThick','f', 1),
     ('gapThick','f', 0),
     ('nrOfPastSpatTrans','i', 0),
-    ('pastST', (('name', 'z', b''),('type', 'i', b''),('sourceFile','z',b''),
-                ('numTransVal','i',b''),('transfVal', (('value', 'f', b''),), 'numTransVal')),
-     'nrOfPastSpatTrans'),
-    ('lrConvention','b', 1),
-    ('referenceSpace','b', 0),
+    ('pastST', (
+        ('name', 'z', b''),
+        ('type', 'i', b''),
+        ('sourceFile','z',b''),
+        ('numTransVal','i',b''),
+        ('transfVal', (('value', 'f', b''),), 'numTransVal')
+    ),'nrOfPastSpatTrans'),
+    ('lrConvention','B', 1),
+    ('referenceSpace','B', 0),
     ('voxResX','f', 1),
     ('voxResY','f', 1),
     ('voxResZ','f', 1),
-    ('flagVoxResolution','b',0),
-    ('flagTalSpace','b', 0),
+    ('flagVoxResolution','B',0),
+    ('flagTalSpace','B', 0),
     ('minIntensity','i', 0),
     ('meanIntensity','i', 127),
     ('maxIntensity','i', 255)
 )
-
-
-
 
 def computeOffsetPostHDR(hdrDict, fileobj):
     currentSeek = fileobj.tell()
@@ -80,26 +81,25 @@ def concatePrePos(preDict, posDict):
     return temp
 
 
-
 class BvVmrHeader(BvFileHeader):
+
+    """Class for BrainVoyager VMR header."""
+
+    # format defaults
     default_endianness = '<'
+    allowed_dtypes = [3]
+    default_dtype = 3
     hdr_dict_proto = VMR_PRHDR_DICT_PROTO + VMR_PSHDR_DICT_PROTO
 
-
     def get_data_shape(self):
-
-     hdr = self._hdrDict
-     # calculate dimensions
-     z =  hdr['dimZ']
-     y =  hdr['dimY']
-     x =  hdr['dimX']
-     return tuple(int(d) for d in [z, y, x])
-
-
-
+        hdr = self._hdrDict
+        # calculate dimensions
+        z =  hdr['dimZ']
+        y =  hdr['dimY']
+        x =  hdr['dimX']
+        return tuple(int(d) for d in [z, y, x])
 
     def set_data_shape(self, shape=None, zyx=None):
-
         if (shape is None) and (zyx is None):
             raise BvError('Shape or zyx needs to be specified!')
         if shape is not None:
@@ -115,7 +115,19 @@ class BvVmrHeader(BvFileHeader):
         self._hdrDict['dimY'] = zyx[1][1] - zyx[1][0]
         self._hDict['dimZ'] =  zyx[0][1] - zyx[0][0]
 
+    def set_data_offset(self, offset):
+        """Set offset into data file to read data.
 
+        The offset is always 8 for VMR files.
+        """
+        self._data_offset = 8
+
+    def get_data_offset(self):
+        """Return offset into data file to read data.
+
+        The offset is always 8 for VMR files.
+        """
+        return 8
 
     def set_xflip(self, xflip):
         if xflip is True:
@@ -125,7 +137,6 @@ class BvVmrHeader(BvFileHeader):
         else:
             self._hdrDict['lrConvention'] = 0
 
-
     def get_xflip(self):
         xflip = int(self._hdrDict['lrConvention'])
         if xflip == 1:
@@ -134,7 +145,6 @@ class BvVmrHeader(BvFileHeader):
             return False
         else:
             raise BvError('Left-right convention is unknown!')
-
 
     @classmethod
     def _get_checks(klass):
@@ -146,17 +156,14 @@ class BvVmrHeader(BvFileHeader):
     @classmethod
     def from_fileobj(klass, fileobj, endianness=default_endianness,
                      check=True):
-
         hdrDictPre = parse_BV_header(VMR_PRHDR_DICT_PROTO, fileobj)
         newSeek = computeOffsetPostHDR(hdrDictPre,fileobj) #calculate new seek for the post data header
         fileobj.seek(newSeek)
         hdrDictPos = parse_BV_header(VMR_PSHDR_DICT_PROTO, fileobj)
         hdrDict = concatePrePos(hdrDictPre, hdrDictPos)
-        offset = fileobj.tell()
+        # The offset is always 8 for VMR files.
+        offset = 8
         return klass(hdrDict, endianness, check, offset)
-
-
-
 
     def get_bbox_center(self):
         """Get the center coordinate of the bounding box.
@@ -167,31 +174,22 @@ class BvVmrHeader(BvFileHeader):
     def get_zooms(self):
         return (self._hdrDict['voxResX'], self._hdrDict['voxResY'], self._hdrDict['voxResZ'])
 
-
-
     def set_zooms(self, zooms):
-
        #check if the input type is correct
         if all(isinstance(i, float) for i in zooms) == False:
             raise BvError('Zooms for VMR files must be float values!')
-
         if len(zooms) != 3:
             raise BvError('Zooms for VMR files must be 3 values!')
-
         self._hdrDict['voxResX'] = float(zooms[0])
         self._hdrDict['voxResY'] = float(zooms[1])
         self._hdrDict['voxResZ'] = float(zooms[2])
 
-
     def write_to(self, fileobj):
-
         binaryblock = pack_BV_header(self.hdr_dict_proto, self._hdrDict)
         sizePrH = calc_BV_header_size(VMR_PRHDR_DICT_PROTO, self._hdrDict) #calculate size of preDataHeader
         fileobj.write(binaryblock[0:sizePrH]) #write the preHeader
-
         fileobj.seek(computeOffsetPostHDR(self._hdrDict, fileobj))
         fileobj.write(binaryblock[sizePrH:])
-
 
     ''' Check functions in format expected by BatteryRunner class '''
 
@@ -238,9 +236,8 @@ class BvVmrHeader(BvFileHeader):
         return hdr, rep
 
 
-
-"""Class for BrainVoyager VMR images."""
 class BvVmrImage(BvFileImage):
+    """Class for BrainVoyager VMR images."""
 
     # Set the class of the corresponding header
     header_class = BvVmrHeader
