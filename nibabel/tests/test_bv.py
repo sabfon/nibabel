@@ -64,7 +64,8 @@ def test_readCString():
     except:
         os.remove(path)
         raise
-    os.remove(path)
+    finally:
+        os.remove(path)
 
 
 def test_parse_BV_header():

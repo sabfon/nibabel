@@ -1,9 +1,8 @@
-import os
 from os.path import join as pjoin
 import numpy as np
-from .. brainvoyager.bv_vtc import *
-from ..testing import (assert_equal, assert_not_equal, assert_true,
-                       assert_false, assert_raises, data_path)
+from .. brainvoyager.bv_vtc import BvVtcHeader
+from ..testing import (data_path)
+from numpy.testing import (assert_array_equal)
 
 # Example images in format expected for ``test_image_api``, adding ``zooms``
 # item.
@@ -24,3 +23,14 @@ EXAMPLE_IMAGES = [
             mean=100.19728),
         is_proxy=True)
 ]
+
+
+def test_get_base_affine():
+    hdr = BvVtcHeader()
+    hdr.set_data_shape((3, 5, 7, 9))
+    hdr.set_zooms((3, 3, 3, 3))
+    assert_array_equal(hdr.get_base_affine(),
+                       np.asarray([[-3.,  0.,  0.,  195.],
+                                   [0.,  0.,  -3., 183.],
+                                   [0.,  -3.,  0., 207.],
+                                   [0.,  0.,  0.,  1.]]))

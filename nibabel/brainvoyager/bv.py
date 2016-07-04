@@ -35,6 +35,17 @@ _dtdefs = (  # code, conversion function, equivalent dtype, aliases
 # Make full code alias bank, including dtype column
 data_type_codes = make_dt_codes(_dtdefs)
 
+# Set example hdr_dict_proto for BV file formats
+BV_HDR_DICT_PROTO = (
+    ('Resolution', 'h', 3),
+    ('XStart', 'h', 57),
+    ('XEnd', 'h', 231),
+    ('YStart', 'h', 52),
+    ('YEnd', 'h', 172),
+    ('ZStart', 'h', 59),
+    ('ZEnd', 'h', 197),
+    )
+
 
 def readCString(f, nStrings=1, bufsize=1000, startPos=None, strip=True,
                 rewind=False):
@@ -145,7 +156,7 @@ def parse_BV_header(hdr_dict_proto, fileobj, parent_hdr_dict=None):
         elif isinstance(format, tuple):
             value = []
             # check the length of the array to expect
-            if hdr_dict.has_key(def_or_name):
+            if def_or_name in hdr_dict:
                 n_values = hdr_dict[def_or_name]
             else:
                 n_values = parent_hdr_dict[def_or_name]
@@ -195,7 +206,7 @@ def pack_BV_header(hdr_dict_proto, hdr_dict, parent_hdr_dict=None):
         # handle array fields
         elif isinstance(format, tuple):
             # check the length of the array to expect
-            if hdr_dict.has_key(def_or_name):
+            if def_or_name in hdr_dict:
                 n_values = hdr_dict[def_or_name]
             else:
                 n_values = parent_hdr_dict[def_or_name]
@@ -245,7 +256,7 @@ def calc_BV_header_size(hdr_dict_proto, hdr_dict, parent_hdr_dict=None):
         # handle array fields
         elif isinstance(format, tuple):
             # check the length of the array to expect
-            if hdr_dict.has_key(def_or_name):
+            if def_or_name in hdr_dict:
                 n_values = hdr_dict[def_or_name]
             else:
                 n_values = parent_hdr_dict[def_or_name]
@@ -276,7 +287,7 @@ def _proto2default(proto, parent_default_hdr=None):
         if isinstance(format, tuple):
             value = []
             # check the length of the array to expect
-            if default_hdr.has_key(def_or_name):
+            if def_or_name in default_hdr:
                 n_values = default_hdr[def_or_name]
             else:
                 n_values = parent_default_hdr[def_or_name]
@@ -318,7 +329,7 @@ class BvFileHeader(Header):
     allowed_dtypes = [1, 2, 3]
     default_dtype = 2
     data_layout = 'C'
-    hdr_dict_proto = ()
+    hdr_dict_proto = BV_HDR_DICT_PROTO
 
     def __init__(self,
                  hdrDict=None,
@@ -350,8 +361,7 @@ class BvFileHeader(Header):
         if offset is None:
             self.set_data_offset(calc_BV_header_size(
                 self.hdr_dict_proto, self._hdrDict))
-
-        if self._hdrDict.has_key('framingCube'):
+        if 'framingCube' in self._hdrDict:
             self._framing_cube = self._hdrDict['framingCube']
         else:
             self._framing_cube = self._guess_framing_cube()
@@ -531,17 +541,6 @@ class BvFileHeader(Header):
         Y := axis increasing from superior to inferior (S to L)
         X := axis increasing from anterior to posterior (A to P)
         T := volumes (if present in file format)
-
-        Examples
-        --------
-        >>> hdr = BvFileHeader()
-        >>> hdr.set_data_shape((3, 5, 7))
-        >>> hdr.set_zooms((3, 3, 3))
-        >>> hdr.get_base_affine() # from center of image
-        array([[-3.,  0.,  0.,  3.],
-               [ 0.,  2.,  0., -4.],
-               [ 0.,  0.,  1., -3.],
-               [ 0.,  0.,  0.,  1.]])
         """
         zooms = self.get_zooms()
         if not self.get_xflip():
