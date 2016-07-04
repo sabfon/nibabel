@@ -6,7 +6,9 @@
 #   copyright and license terms.
 #
 # ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
-"""Test BV module for VMR files."""
+"""Test BV module for VMR files.
+Author: Sabrina Fontanella and Thomas Emmerling
+"""
 
 from os.path import join as pjoin
 import numpy as np
@@ -140,6 +142,7 @@ def compareValues(header, testHeader):
 def test_parse_BVVMR_header():
     vmr = BvVmrImage.from_filename(vmr_file)
     compareValues(vmr.header._hdrDict, EXAMPLE_HDR)
+
 
 
 def test_wrong_input():

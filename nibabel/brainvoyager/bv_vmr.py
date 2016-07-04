@@ -165,10 +165,15 @@ class BvVmrHeader(BvFileHeader):
         return klass(hdrDict, endianness, check, offset)
 
     def get_bbox_center(self):
-        """Get the center coordinate of the bounding box.
-           Not required for VMR files
+        """g.
         """
-        return 0, 0, 0
+        hdr = self._hdrDict
+
+        x = hdr['offsetX'] + (hdr['dimX']/2)
+        y = hdr['offsetY'] + (hdr['dimY']/2)
+        z = hdr['offsetZ'] + (hdr['dimZ']/2)
+        return z, y, x
+
 
     def get_zooms(self):
         return (self._hdrDict['voxResX'], self._hdrDict['voxResY'],
