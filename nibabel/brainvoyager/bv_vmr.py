@@ -175,18 +175,18 @@ class BvVmrHeader(BvFileHeader):
         return 0, 0, 0
 
     def get_zooms(self):
-        return (self._hdrDict['voxResX'], self._hdrDict['voxResY'],
-                self._hdrDict['voxResZ'])
+        return (self._hdrDict['voxResZ'], self._hdrDict['voxResY'],
+                self._hdrDict['voxResX'])
 
     def set_zooms(self, zooms):
         # check if the input type is correct
         if all(isinstance(i, float) for i in zooms) is False:
             raise BvError('Zooms for VMR files must be float values!')
         if len(zooms) != 3:
-            raise BvError('Zooms for VMR files must be 3 values!')
-        self._hdrDict['voxResX'] = float(zooms[0])
+            raise BvError('Zooms for VMR files must be 3 values (ZYX)!')
+        self._hdrDict['voxResZ'] = float(zooms[0])
         self._hdrDict['voxResY'] = float(zooms[1])
-        self._hdrDict['voxResZ'] = float(zooms[2])
+        self._hdrDict['voxResX'] = float(zooms[2])
 
     def write_to(self, fileobj):
         binaryblock = pack_BV_header(self.hdr_dict_proto, self._hdrDict)
