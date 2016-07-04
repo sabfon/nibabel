@@ -7,10 +7,8 @@
 #
 # ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
 """Reading / writing functions for Brainvoyager (BV) MSK files.
-
 for documentation on the file format see:
 http://www.brainvoyager.com/ubb/Forum8/HTML/000087.html
-
 Author: Thomas Emmerling
 """
 
@@ -28,7 +26,6 @@ MSK_HDR_DICT_PROTO = (
 
 
 class BvMskHeader(BvFileHeader):
-
     """Class for BrainVoyager MSK header."""
 
     # format defaults
@@ -51,11 +48,9 @@ class BvMskHeader(BvFileHeader):
 
     def set_data_shape(self, shape=None, zyx=None):
         """Set shape of data.
-
         To conform with nibabel standards this implements shape.
         However, to fill the VtcHeader with sensible information use
         the zyxt parameter instead.
-
         Parameters
         ----------
         shape : sequence
@@ -70,12 +65,12 @@ class BvMskHeader(BvFileHeader):
             # Dimensions will start from standard coordinates.
             if len(shape) != 3:
                 raise BvError('Shape for MSK files must be 3 dimensional!')
-            self._hdrDict['XEnd'] = \
-                57 + (shape[2] * self._hdrDict['Resolution'])
-            self._hdrDict['YEnd'] = \
-                52 + (shape[1] * self._hdrDict['Resolution'])
-            self._hdrDict['ZEnd'] = \
-                59 + (shape[0] * self._hdrDict['Resolution'])
+            self._hdrDict['XEnd'] = self._hdrDict['XStart'] + \
+                (shape[2] * self._hdrDict['Resolution'])
+            self._hdrDict['YEnd'] = self._hdrDict['YStart'] + \
+                (shape[1] * self._hdrDict['Resolution'])
+            self._hdrDict['ZEnd'] = self._hdrDict['ZStart'] + \
+                (shape[0] * self._hdrDict['Resolution'])
             return
         self._hdrDict['XStart'] = zyx[0][0]
         self._hdrDict['XEnd'] = zyx[0][1]
@@ -92,7 +87,6 @@ class BvMskHeader(BvFileHeader):
 
 class BvMskImage(BvFileImage):
     """Class for BrainVoyager MSK masks.
-
     MSK files are technically binary images
     """
 

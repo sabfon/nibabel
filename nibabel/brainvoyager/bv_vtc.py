@@ -6,18 +6,15 @@
 #   copyright and license terms.
 #
 # ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
-"""Reading / writing functions for Brainvoyager (BV) VTC files
-
+"""Reading / writing functions for Brainvoyager (BV) VTC files.
 for documentation on the file format see:
 http://support.brainvoyager.com/installation-introduction/23-file-formats/379-users-guide-23-the-format-of-vtc-files.html
-
 Author: Thomas Emmerling
 """
 
 from .bv import BvError, BvFileHeader, BvFileImage
 from ..spatialimages import HeaderDataError
 from ..batteryrunners import Report
-
 
 VTC_HDR_DICT_PROTO = (
     ('version', 'h', 3),
@@ -42,7 +39,12 @@ VTC_HDR_DICT_PROTO = (
 
 class BvVtcHeader(BvFileHeader):
     """Header for Brainvoyager (BV) VTC files.
+    For documentation on the file format see:
+    http://support.brainvoyager.com/installation-introduction/23-file-formats/379-users-guide-23-the-format-of-vtc-files.html
+    """
 
+    """
+    Header for Brainvoyager (BV) VTC files.
     For documentation on the file format see:
     http://support.brainvoyager.com/installation-introduction/23-file-formats/379-users-guide-23-the-format-of-vtc-files.html
     """
@@ -67,11 +69,9 @@ class BvVtcHeader(BvFileHeader):
 
     def set_data_shape(self, shape=None, zyx=None, t=None):
         """Set shape of data.
-
         To conform with nibabel standards this implements shape.
         However, to fill the VtcHeader with sensible information
         use the zyxt parameter instead.
-
         Parameters
         ----------
         shape : sequence
@@ -89,11 +89,14 @@ class BvVtcHeader(BvFileHeader):
             if len(shape) != 4:
                 raise BvError('Shape for VTC files must be 4 dimensional!')
             self._hdrDict['XEnd'] = \
-                57 + (shape[2] * self._hdrDict['Resolution'])
+                self._hdrDict['XStart'] + \
+                (shape[2] * self._hdrDict['Resolution'])
             self._hdrDict['YEnd'] = \
-                52 + (shape[1] * self._hdrDict['Resolution'])
+                self._hdrDict['YStart'] + \
+                (shape[1] * self._hdrDict['Resolution'])
             self._hdrDict['ZEnd'] = \
-                59 + (shape[0] * self._hdrDict['Resolution'])
+                self._hdrDict['ZStart'] + \
+                (shape[0] * self._hdrDict['Resolution'])
             self._hdrDict['volumes'] = shape[3]
             return
         self._hdrDict['XStart'] = zyx[2][0]

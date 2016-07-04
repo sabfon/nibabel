@@ -6,14 +6,13 @@
 #   copyright and license terms.
 #
 # ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
-''' Reading / writing functions for Brainvoyager (BV) file formats
-
+"""Reading / writing functions for Brainvoyager (BV) file formats.
 please look at the support site of BrainInnovation for further informations
-about the file formats:
-http://support.brainvoyager.com/
-
+about the file formats: http://support.brainvoyager.com/
+This file implements basic functionality for BV file formats. Look into bv_*.py
+files for implementations of the different file formats.
 Author: Thomas Emmerling
-'''
+"""
 
 import numpy as np
 
@@ -33,35 +32,22 @@ _dtdefs = (  # code, conversion function, equivalent dtype, aliases
 # Make full code alias bank, including dtype column
 data_type_codes = make_dt_codes(_dtdefs)
 
-
-def _proto2default(proto):
-    """Helper for creating a VTC header OrderedDict with default parameters.
-
-    Create an OrderedDict that contains keys with the header fields, and
-    default values.
-
-    See :func:`parse_BV_header` for description of `proto` format.
-    """
-    default_hdr = OrderedDict()
-    for name, format, def_or_name in proto:
-        default_hdr[name] = {}
-        if isinstance(format, tuple):
-            value = _proto2default(format)
-            default_hdr[name] = [value]
-        else:
-            if isinstance(def_or_name, tuple):
-                default_hdr[name] = def_or_name[0]
-            else:
-                default_hdr[name] = def_or_name
-    return default_hdr
+# Set example hdr_dict_proto for BV file formats
+BV_HDR_DICT_PROTO = (
+    ('Resolution', 'h', 3),
+    ('XStart', 'h', 57),
+    ('XEnd', 'h', 231),
+    ('YStart', 'h', 52),
+    ('YEnd', 'h', 172),
+    ('ZStart', 'h', 59),
+    ('ZEnd', 'h', 197),
+    )
 
 
 def readCString(f, nStrings=1, bufsize=1000, startPos=None, strip=True,
                 rewind=False):
     """Read a zero-terminated string from a file object.
-
     Read and return a zero-terminated string from a file object.
-
     Parameters
     ----------
     f : fileobj
@@ -80,7 +66,6 @@ def readCString(f, nStrings=1, bufsize=1000, startPos=None, strip=True,
     rewind: bool, optional
        Whether the fileobj f should be returned to the initial position after
        reading. Default is False.
-
     Returns
     -------
     str_list : generator of string(s)
@@ -107,25 +92,25 @@ def readCString(f, nStrings=1, bufsize=1000, startPos=None, strip=True,
     return str_list
 
 
-def parse_BV_header(hdr_dict_proto, fileobj):
+def parse_BV_header(hdr_dict_proto, fileobj, parent_hdr_dict=None):
     """Parse the header of a BV file format.
-
     This function can be (and is) called recursively to iterate through nested
     fields (e.g. the ``prts`` field of the VTC header).
-
     Parameters
     ----------
     hdr_dict_proto: tuple
         tuple of format described in Notes below.
     fileobj : fileobj
-       File object to use. Make sure that the current position is at the
-       beginning of the header (e.g. at 0).
-
+        File object to use. Make sure that the current position is at the
+        beginning of the header (e.g. at 0).
+    parent_hdr_dict: tuple
+        When parse_BV_header() is called recursively the already filled
+        (parent) hdr_dict is passed to give access to n_fields_name fields
+        outside the current scope (see below).
     Notes
     -----
     The description of `hdr_dict_proto` below is notated according to
     https://docs.python.org/3/reference/introduction.html#notation
-
         hdr_dict_proto ::= ((element_proto))*
         element_proto ::= '(' name ',' pack_format ',' default ')'  |
                           '(' name ',' pack_format ',' '(' default ','
@@ -137,14 +122,14 @@ def parse_BV_header(hdr_dict_proto, fileobj):
         c_fields_name ::= str
         c_fields_value ::= int | float | bytes
         default ::= int | float | bytes
-
     The pack_format codes have meaning::
-
         b := signed char (1 byte)
+        B := unsigned char (1 byte)
         h := signed short integer (2 bytes)
+        i := signed integer (4 bytes)
+        I := unsigned integer (4 bytes)
         f := float (4 bytes)
         z := zero-terminated string (variable bytes)
-
     The c_fields_name and c_fields_value parameters are used for header fields
     that are only written depending on the value of another header field (e.g.
     'NrOfLags' in the VMP file header).
@@ -157,9 +142,18 @@ def parse_BV_header(hdr_dict_proto, fileobj):
         # handle array fields
         elif isinstance(format, tuple):
             value = []
-            n_values = hdr_dict[def_or_name]
+            # check the length of the array to expect
+            if def_or_name in hdr_dict:
+                n_values = hdr_dict[def_or_name]
+            else:
+                n_values = parent_hdr_dict[def_or_name]
             for i in range(n_values):
-                value.append(parse_BV_header(format, fileobj))
+                value.append(parse_BV_header(format, fileobj, hdr_dict))
+        # handle conditional fields
+        elif isinstance(def_or_name, tuple):
+            if hdr_dict[def_or_name[1]] == def_or_name[2]:
+                bytes = fileobj.read(calcsize(format))
+                value = unpack('<' + format, bytes)[0]
         else:  # pack string format
             bytes = fileobj.read(calcsize(format))
             value = unpack('<' + format, bytes)[0]
@@ -167,12 +161,10 @@ def parse_BV_header(hdr_dict_proto, fileobj):
     return hdr_dict
 
 
-def pack_BV_header(hdr_dict_proto, hdr_dict):
+def pack_BV_header(hdr_dict_proto, hdr_dict, parent_hdr_dict=None):
     """Pack the header of a BV file format into a byte string.
-
     This function can be (and is) called recursively to iterate through nested
     fields (e.g. the ``prts`` field of the VTC header).
-
     Parameters
     ----------
     hdr_dict_proto: tuple
@@ -180,7 +172,10 @@ def pack_BV_header(hdr_dict_proto, hdr_dict):
     hdrDict: OrderedDict
        hdrDict that contains the fields and values to for the respective
        BV file format.
-
+    parent_hdr_dict: tuple
+       When parse_BV_header() is called recursively the already filled
+       (parent) hdr_dict is passed to give access to n_fields_name fields
+       outside the current scope (see below).
     Returns
     -------
     binaryblock : bytes
@@ -195,23 +190,28 @@ def pack_BV_header(hdr_dict_proto, hdr_dict):
         # handle array fields
         elif isinstance(format, tuple):
             # check the length of the array to expect
-            n_values = hdr_dict[def_or_name]
+            if def_or_name in hdr_dict:
+                n_values = hdr_dict[def_or_name]
+            else:
+                n_values = parent_hdr_dict[def_or_name]
             sub_parts = []
             for i in range(n_values):
-                sub_parts.append(pack_BV_header(format, value[i]))
+                sub_parts.append(pack_BV_header(format, value[i], hdr_dict))
             part = b''.join(sub_parts)
+        # handle conditional fields
+        elif isinstance(def_or_name, tuple):
+            if hdr_dict[def_or_name[1]] == def_or_name[2]:
+                part = pack('<' + format, value)
         else:
             part = pack('<' + format, value)
         binary_parts.append(part)
     return b''.join(binary_parts)
 
 
-def calc_BV_header_size(hdr_dict_proto, hdr_dict):
+def calc_BV_header_size(hdr_dict_proto, hdr_dict, parent_hdr_dict=None):
     """Calculate the binary size of a hdrDict for a BV file format header.
-
     This function can be (and is) called recursively to iterate through nested
     fields (e.g. the prts field of the VTC header).
-
     Parameters
     ----------
     hdr_dict_proto: tuple
@@ -219,7 +219,10 @@ def calc_BV_header_size(hdr_dict_proto, hdr_dict):
     hdrDict: OrderedDict
        hdrDict that contains the fields and values to for the respective
        BV file format.
-
+    parent_hdr_dict: tuple
+       When parse_BV_header() is called recursively the already filled
+       (parent) hdr_dict is passed to give access to n_fields_name fields
+       outside the current scope (see below).
     Returns
     -------
     hdr_size : int
@@ -234,19 +237,53 @@ def calc_BV_header_size(hdr_dict_proto, hdr_dict):
         # handle array fields
         elif isinstance(format, tuple):
             # check the length of the array to expect
-            n_values = hdr_dict[def_or_name]
+            if def_or_name in hdr_dict:
+                n_values = hdr_dict[def_or_name]
+            else:
+                n_values = parent_hdr_dict[def_or_name]
             for i in range(n_values):
                 # recursively iterate through the fields of all items
                 # in the array
-                hdr_size += calc_BV_header_size(format, value[i])
+                hdr_size += calc_BV_header_size(format, value[i], hdr_dict)
+        # handle conditional fields
+        elif isinstance(def_or_name, tuple):
+            if hdr_dict[def_or_name[1]] == def_or_name[2]:
+                hdr_size += calcsize(format)
         else:
             hdr_size += calcsize(format)
     return hdr_size
 
 
+def _proto2default(proto, parent_default_hdr=None):
+    """Helper for creating a VTC header OrderedDict with default parameters.
+    Create an OrderedDict that contains keys with the header fields, and
+    default values.
+    See :func:`parse_BV_header` for description of `proto` format.
+    """
+    default_hdr = OrderedDict()
+    for name, format, def_or_name in proto:
+        default_hdr[name] = {}
+        if isinstance(format, tuple):
+            value = []
+            # check the length of the array to expect
+            if def_or_name in default_hdr:
+                n_values = default_hdr[def_or_name]
+            else:
+                n_values = parent_default_hdr[def_or_name]
+            for i in range(n_values):
+                value.append(_proto2default(format, default_hdr))
+            default_hdr[name] = value
+        # handle conditional fields
+        elif isinstance(def_or_name, tuple):
+            if default_hdr[def_or_name[1]] == def_or_name[2]:
+                default_hdr[name] = def_or_name[0]
+        else:
+            default_hdr[name] = def_or_name
+    return default_hdr
+
+
 class BvError(Exception):
     """Exception for BV format related problems.
-
     To be raised whenever there is a problem with a BV fileformat.
     """
 
@@ -268,7 +305,7 @@ class BvFileHeader(Header):
     allowed_dtypes = [1, 2, 3]
     default_dtype = 2
     data_layout = 'C'
-    hdr_dict_proto = ()
+    hdr_dict_proto = BV_HDR_DICT_PROTO
 
     def __init__(self,
                  hdrDict=None,
@@ -276,7 +313,6 @@ class BvFileHeader(Header):
                  check=True,
                  offset=None):
         """Initialize header from binary data block.
-
         Parameters
         ----------
         binaryblock : {None, string} optional
@@ -300,8 +336,7 @@ class BvFileHeader(Header):
         if offset is None:
             self.set_data_offset(calc_BV_header_size(
                 self.hdr_dict_proto, self._hdrDict))
-
-        if self._hdrDict.has_key('framingCube'):
+        if 'framingCube' in self._hdrDict:
             self._framing_cube = self._hdrDict['framingCube']
         else:
             self._framing_cube = self._guess_framing_cube()
@@ -313,14 +348,12 @@ class BvFileHeader(Header):
     def from_fileobj(klass, fileobj, endianness=default_endianness,
                      check=True):
         """Return read structure with given or guessed endiancode.
-
         Parameters
         ----------
         fileobj : file-like object
            Needs to implement ``read`` method
         endianness : None or endian code, optional
            Code specifying endianness of read data
-
         Returns
         -------
         header : BvFileHeader object
@@ -333,7 +366,6 @@ class BvFileHeader(Header):
     @classmethod
     def from_header(klass, header=None, check=False):
         """Class method to create header from another header.
-
         Parameters
         ----------
         header : ``Header`` instance or mapping
@@ -341,7 +373,6 @@ class BvFileHeader(Header):
            conversion to this type
         check : {True, False}
            whether to check header for integrity
-
         Returns
         -------
         hdr : header instance
@@ -392,7 +423,6 @@ class BvFileHeader(Header):
 
     def copy(self):
         """Copy object to independent representation.
-
         The copy should not be affected by any changes to the original
         object.
         """
@@ -404,12 +434,10 @@ class BvFileHeader(Header):
 
     def data_from_fileobj(self, fileobj):
         """Read data array from `fileobj`.
-
         Parameters
         ----------
         fileobj : file-like
            Must be open, and implement ``read`` and ``seek`` methods
-
         Returns
         -------
         arr : ndarray
@@ -423,7 +451,6 @@ class BvFileHeader(Header):
 
     def get_data_dtype(self):
         """Get numpy dtype for data.
-
         For examples see ``set_data_dtype``
         """
         if 'datatype' in self._hdrDict:
@@ -472,26 +499,13 @@ class BvFileHeader(Header):
 
     def get_base_affine(self):
         """Get affine from basic (shared) header fields.
-
         Note that we get the translations from the center of the
         (guessed) framing cube of the referenced VMR (anatomical) file.
-
         Internal storage of the image is ZYXT, where (in RAS orientations)
         Z := axis increasing from right to left (R to L)
         Y := axis increasing from superior to inferior (S to L)
         X := axis increasing from anterior to posterior (A to P)
         T := volumes (if present in file format)
-
-        Examples
-        --------
-        >>> hdr = BvFileHeader()
-        >>> hdr.set_data_shape((3, 5, 7))
-        >>> hdr.set_zooms((3, 3, 3))
-        >>> hdr.get_base_affine() # from center of image
-        array([[-3.,  0.,  0.,  3.],
-               [ 0.,  2.,  0., -4.],
-               [ 0.,  0.,  1., -3.],
-               [ 0.,  0.,  0.,  1.]])
         """
         zooms = self.get_zooms()
         if not self.get_xflip():
@@ -528,10 +542,8 @@ class BvFileHeader(Header):
 
     def _guess_framing_cube(self):
         """Guess the dimensions of the framing cube.
-
         Guess the dimensions of the framing cube that constitutes the
         coordinate system boundaries for the bounding box.
-
         For most BV file formats this need to be guessed from
         XEnd, YEnd, and ZEnd in the header.
         """
@@ -551,7 +563,6 @@ class BvFileHeader(Header):
 
     def get_framing_cube(self):
         """Get the dimensions of the framing cube.
-
         Get the dimensions of the framing cube that constitutes the
         coordinate system boundaries for the bounding box.
         For most BV file formats this need to be guessed from
@@ -561,7 +572,6 @@ class BvFileHeader(Header):
 
     def set_framing_cube(self, fc):
         """Set the dimensions of the framing cube.
-
         Set the dimensions of the framing cube that constitutes the
         coordinate system boundaries for the bounding box
         For most BV file formats this need to be guessed from
@@ -572,7 +582,6 @@ class BvFileHeader(Header):
 
     def get_bbox_center(self):
         """Get the center coordinate of the bounding box.
-
         Get the center coordinate of the bounding box with respect to the
         framing cube.
         """
@@ -620,14 +629,11 @@ class BvFileHeader(Header):
 
     def write_to(self, fileobj):
         """Write header to fileobj.
-
         Write starts at fileobj current file position.
-
         Parameters
         ----------
         fileobj : file-like object
            Should implement ``write`` method
-
         Returns
         -------
         None
@@ -653,7 +659,6 @@ class BvFileImage(SpatialImage):
 
     def update_header(self):
         """Harmonize header with image data and affine.
-
         >>> data = np.zeros((2,3,4))
         >>> affine = np.diag([1.0,2.0,3.0,1.0])
         >>> img = SpatialImage(data, affine)
@@ -677,7 +682,6 @@ class BvFileImage(SpatialImage):
     @classmethod
     def from_file_map(klass, file_map):
         """Load image from `file_map`.
-
         Parameters
         ----------
         file_map : None or mapping, optional
@@ -698,7 +702,6 @@ class BvFileImage(SpatialImage):
 
     def _write_header(self, header_file, header):
         """Utility routine to write BV header.
-
         Parameters
         ----------
         header_file : file-like
@@ -713,7 +716,6 @@ class BvFileImage(SpatialImage):
 
     def _write_data(self, bvfile, data, header):
         """Utility routine to write BV image.
-
         Parameters
         ----------
         vtcfile : file-like
@@ -734,7 +736,6 @@ class BvFileImage(SpatialImage):
 
     def to_file_map(self, file_map=None):
         """Write image to `file_map` or contained ``self.file_map``.
-
         Parameters
         ----------
         file_map : None or mapping, optional
