@@ -14,7 +14,6 @@ http://support.brainvoyager.com/installation-introduction/23-file-formats/377-us
 Author: Thomas Emmerling
 """
 
-import numpy as np
 from .bv import BvError, BvFileHeader, BvFileImage, _proto2default
 
 VMP_HDR_DICT_PROTO = (
@@ -77,17 +76,18 @@ VMP_HDR_DICT_PROTO = (
             ('q', 'f', 0),
             ('critStandard', 'f', 0),
             ('critConservative', 'f', 0),
-        ),'SizeOfFDRTable'),
+        ), 'SizeOfFDRTable'),
         ('UseFDRTableIndex', 'i', 0),
-    ),'NrOfSubMaps'),
+    ), 'NrOfSubMaps'),
     ('ComponentTimePoints', (
-        ('Timepoints', (('Timepoint', 'f', 0),),'NrOfTimePoints'),
-    ),'NrOfSubMaps'),
+        ('Timepoints', (('Timepoint', 'f', 0),), 'NrOfTimePoints'),
+    ), 'NrOfSubMaps'),
     ('ComponentParams', (
         ('ParamName', 'z', b''),
-        ('ParamValues', (('Value', 'f', 0),),'NrOfSubMaps')
-    ),'NrOfComponentParams')
+        ('ParamValues', (('Value', 'f', 0),), 'NrOfSubMaps')
+    ), 'NrOfComponentParams')
     )
+
 
 class BvVmpHeader(BvFileHeader):
     ''' Class for BrainVoyager NR-VMP header
@@ -112,7 +112,8 @@ class BvVmpHeader(BvFileHeader):
     def set_data_shape(self, shape=None, zyx=None, n=None):
         ''' Set shape of data
         To conform with nibabel standards this implements shape.
-        However, to fill the BvVtcHeader with sensible information use the zyxn parameter instead.
+        However, to fill the BvVtcHeader with sensible information use the
+        zyxn parameter instead.
 
         Parameters
         ----------
@@ -128,15 +129,16 @@ class BvVmpHeader(BvFileHeader):
             raise BvError('Shape, zyx, or n needs to be specified!')
 
         if ((n is not None) and (n < 1)) or \
-            ((shape is not None) and (shape[0] < 1)):
+           ((shape is not None) and (shape[0] < 1)):
             raise BvError('NR-VMP files need at least one sub-map!')
 
         nc = self._hdrDict['NrOfSubMaps']
         if shape is not None:
-            # Use zyx and t parameters instead of shape. Dimensions will start from
-            # default coordinates.
+            # Use zyx and t parameters instead of shape.
+            # Dimensions will start from default coordinates.
             if len(shape) != 4:
-                raise BvError('Shape for VMP files must be 4 dimensional (NZYX)!')
+                raise BvError('Shape for VMP files must be 4 dimensional\
+                              (NZYX)!')
             self._hdrDict['XEnd'] = self._hdrDict['XStart'] + \
                 (shape[3] * self._hdrDict['Resolution'])
             self._hdrDict['YEnd'] = self._hdrDict['YStart'] + \
@@ -145,7 +147,8 @@ class BvVmpHeader(BvFileHeader):
                 (shape[1] * self._hdrDict['Resolution'])
             if shape[0] > nc:
                 for m in range(shape[0] - nc):
-                    self._hdrDict['Maps'].append(_proto2default(self.hdr_dict_proto[23][1]))
+                    self._hdrDict['Maps']\
+                        .append(_proto2default(self.hdr_dict_proto[23][1]))
             elif shape[0] < nc:
                 for m in range(nc - shape[0]):
                     self._hdrDict['Maps'].pop()
@@ -161,7 +164,8 @@ class BvVmpHeader(BvFileHeader):
         if n is not None:
             if n > nc:
                 for m in range(n - nc):
-                    self._hdrDict['Maps'].append(_proto2default(self.hdr_dict_proto[23][1]))
+                    self._hdrDict['Maps']\
+                        .append(_proto2default(self.hdr_dict_proto[23][1]))
             elif n < nc:
                 for m in range(nc - n):
                     self._hdrDict['Maps'].pop()
@@ -184,6 +188,7 @@ class BvVmpHeader(BvFileHeader):
         self._hdrDict['DimY'] = fc[1]
         self._hdrDict['DimX'] = fc[2]
         self._framing_cube = fc
+
 
 class BvVmpImage(BvFileImage):
     # Set the class of the corresponding header

@@ -95,11 +95,14 @@ class BvVtcHeader(BvFileHeader):
             if len(shape) != 4:
                 raise BvError('Shape for VTC files must be 4 dimensional!')
             self._hdrDict['XEnd'] = \
-                self._hdrDict['XStart'] + (shape[2] * self._hdrDict['Resolution'])
+                self._hdrDict['XStart'] + \
+                (shape[2] * self._hdrDict['Resolution'])
             self._hdrDict['YEnd'] = \
-                self._hdrDict['YStart'] + (shape[1] * self._hdrDict['Resolution'])
+                self._hdrDict['YStart'] + \
+                (shape[1] * self._hdrDict['Resolution'])
             self._hdrDict['ZEnd'] = \
-                self._hdrDict['ZStart'] + (shape[0] * self._hdrDict['Resolution'])
+                self._hdrDict['ZStart'] + \
+                (shape[0] * self._hdrDict['Resolution'])
             self._hdrDict['volumes'] = shape[3]
             return
         self._hdrDict['XStart'] = zyx[2][0]

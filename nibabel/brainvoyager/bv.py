@@ -304,7 +304,6 @@ def _proto2default(proto, parent_default_hdr=None):
 
 
 class BvError(Exception):
-
     """Exception for BV format related problems.
 
     To be raised whenever there is a problem with a BV fileformat.
@@ -314,7 +313,6 @@ class BvError(Exception):
 
 
 class BvFileHeader(Header):
-
     """Class to hold information from a BV file header."""
 
     # Copies of module-level definitions
@@ -686,7 +684,6 @@ class BvFileHeader(Header):
 
 
 class BvFileImage(SpatialImage):
-
     """Class to hold information from a BV image file."""
 
     # Set the class of the corresponding header

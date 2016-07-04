@@ -1,9 +1,16 @@
-import os
+# emacs: -*- mode: python-mode; py-indent-offset: 4; indent-tabs-mode: nil -*-
+# vi: set ft=python sts=4 ts=4 sw=4 et:
+# ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
+#
+#   See COPYING file distributed along with the NiBabel package for the
+#   copyright and license terms.
+#
+# ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
+"""Test BV module for MSK files."""
+
 from os.path import join as pjoin
 import numpy as np
-from .. brainvoyager.bv_msk import *
-from ..testing import (assert_equal, assert_not_equal, assert_true,
-                       assert_false, assert_raises, data_path)
+from ..testing import (data_path)
 
 # Example images in format expected for ``test_image_api``, adding ``zooms``
 # item.

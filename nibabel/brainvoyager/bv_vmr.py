@@ -11,7 +11,7 @@
 for documentation on the file format see:
 http://support.brainvoyager.com/automation-aamp-development/23-file-formats/385-developer-guide-26-the-format-of-vmr-files.html
 
-Author: Sabrina Fontanella
+Author: Sabrina Fontanella and Thomas Emmerling
 """
 
 from .bv import (BvError, BvFileHeader, BvFileImage, parse_BV_header,
