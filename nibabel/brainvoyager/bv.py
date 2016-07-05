@@ -534,9 +534,10 @@ class BvFileHeader(Header):
         Note that we get the translations from the center of the
         (guessed) framing cube of the referenced VMR (anatomical) file.
 
-        Internal storage of the image is ZYXT, where (in RAS orientations)
+        Internal storage of the image is ZYXT, where (in patient coordiante/
+        real world orientations):
         Z := axis increasing from right to left (R to L)
-        Y := axis increasing from superior to inferior (S to L)
+        Y := axis increasing from superior to inferior (S to I)
         X := axis increasing from anterior to posterior (A to P)
         T := volumes (if present in file format)
         """
