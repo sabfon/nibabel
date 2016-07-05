@@ -253,7 +253,6 @@ def calc_BV_header_size(hdr_dict_proto, hdr_dict, parent_hdr_dict=None):
             hdr_size += calcsize(format)
     return hdr_size
 
-
 def _proto2default(proto, parent_default_hdr=None):
     """Helper for creating a VTC header OrderedDict with default parameters.
     Create an OrderedDict that contains keys with the header fields, and
@@ -640,7 +639,6 @@ class BvFileHeader(Header):
         """
         binaryblock = pack_BV_header(self.hdr_dict_proto, self._hdrDict)
         fileobj.write(binaryblock)
-
 
 class BvFileImage(SpatialImage):
     """Class to hold information from a BV image file."""
