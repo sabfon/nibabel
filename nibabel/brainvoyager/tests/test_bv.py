@@ -10,10 +10,10 @@
 
 import os
 import tempfile
-from ..brainvoyager.bv import (readCString, parse_BV_header, pack_BV_header,
+from ..bv import (readCString, parse_BV_header, pack_BV_header,
                                calc_BV_header_size)
-from ..brainvoyager.bv_vtc import VTC_HDR_DICT_PROTO
-from ..testing import (assert_equal, data_path)
+from ..bv_vtc import VTC_HDR_DICT_PROTO
+from ...testing import (assert_equal, data_path)
 
 
 vtc_file = os.path.join(data_path, 'test.vtc')
@@ -62,7 +62,6 @@ def test_readCString():
         fread.seek(0)
         assert_equal([s for s in readCString(fread, startPos=9)], ['test.prt'])
     except:
-        os.remove(path)
         raise
     finally:
         os.remove(path)

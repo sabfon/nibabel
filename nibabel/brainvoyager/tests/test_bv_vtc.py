@@ -10,8 +10,8 @@
 
 from os.path import join as pjoin
 import numpy as np
-from .. brainvoyager.bv_vtc import BvVtcHeader
-from ..testing import (data_path)
+from ..bv_vtc import BvVtcHeader
+from ...testing import (data_path)
 from numpy.testing import (assert_array_equal)
 
 # Example images in format expected for ``test_image_api``, adding ``zooms``

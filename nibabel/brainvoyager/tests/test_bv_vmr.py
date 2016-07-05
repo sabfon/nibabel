@@ -10,10 +10,10 @@
 
 from os.path import join as pjoin
 import numpy as np
-from ..brainvoyager.bv import BvError
-from ..brainvoyager.bv_vmr import BvVmrImage, BvVmrHeader
-from ..testing import (assert_equal, data_path)
-from ..externals import OrderedDict
+from ..bv import BvError
+from ..bv_vmr import BvVmrImage, BvVmrHeader
+from ...testing import (assert_equal, data_path)
+from ...externals import OrderedDict
 
 vmr_file = pjoin(data_path, 'test.vmr')
 

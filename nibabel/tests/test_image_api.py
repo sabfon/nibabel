@@ -53,10 +53,10 @@ from .test_helpers import bytesio_round_trip, assert_data_similar
 from .test_minc1 import EXAMPLE_IMAGES as MINC1_EXAMPLE_IMAGES
 from .test_minc2 import EXAMPLE_IMAGES as MINC2_EXAMPLE_IMAGES
 from .test_parrec import EXAMPLE_IMAGES as PARREC_EXAMPLE_IMAGES
-from .test_bv_vtc import EXAMPLE_IMAGES as BVVTC_EXAMPLE_IMAGES
-from .test_bv_msk import EXAMPLE_IMAGES as BVMSK_EXAMPLE_IMAGES
-from .test_bv_vmp import EXAMPLE_IMAGES as BVVMP_EXAMPLE_IMAGES
-from .test_bv_vmr import EXAMPLE_IMAGES as BVVMR_EXAMPLE_IMAGES
+from ..brainvoyager.tests.test_bv_vtc import EXAMPLE_IMAGES as BVVTC_EXAMPLE_IMAGES
+from ..brainvoyager.tests.test_bv_msk import EXAMPLE_IMAGES as BVMSK_EXAMPLE_IMAGES
+from ..brainvoyager.tests.test_bv_vmp import EXAMPLE_IMAGES as BVVMP_EXAMPLE_IMAGES
+from ..brainvoyager.tests.test_bv_vmr import EXAMPLE_IMAGES as BVVMR_EXAMPLE_IMAGES
 
 
 class GenericImageAPI(ValidateAPI):
