@@ -165,6 +165,7 @@ def is_proxy(obj):
     except AttributeError:
         return False
 
+
 class CArrayProxy(ArrayProxy):
     # Assume C array memory layout
     order = 'C'

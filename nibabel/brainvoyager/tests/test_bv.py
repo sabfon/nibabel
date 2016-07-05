@@ -9,7 +9,7 @@
 """Test main BV module."""
 
 import os
-import tempfile
+from ...tmpdirs import InTemporaryDirectory
 from ..bv import (readCString, parse_BV_header, pack_BV_header,
                                calc_BV_header_size)
 from ..bv_vtc import VTC_HDR_DICT_PROTO
@@ -23,14 +23,15 @@ vmp_file = os.path.join(data_path, 'test.vmp')
 def test_readCString():
     # sample binary block
     binary = 'test.fmr\x00test.prt\x00'
-    try:
+    with InTemporaryDirectory():
         # create a tempfile
-        file, path = tempfile.mkstemp()
+        path = 'test.header'
         fwrite = open(path, 'w')
 
         # write the binary block to it
         fwrite.write(binary)
         fwrite.close()
+        del fwrite
 
         # open it again
         fread = open(path, 'r')
@@ -61,10 +62,8 @@ def test_readCString():
         # test readout of one string from given position
         fread.seek(0)
         assert_equal([s for s in readCString(fread, startPos=9)], ['test.prt'])
-    except:
-        raise
-    finally:
-        os.remove(path)
+
+        del fread
 
 
 def test_parse_BV_header():
