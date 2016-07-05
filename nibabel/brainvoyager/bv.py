@@ -23,6 +23,7 @@ from ..arrayproxy import CArrayProxy
 from ..volumeutils import make_dt_codes
 from struct import pack, unpack, calcsize
 from ..externals import OrderedDict
+import scipy.linalg as spl
 
 _dtdefs = (  # code, conversion function, equivalent dtype, aliases
     (1, 'int16', np.uint16),
@@ -538,6 +539,9 @@ class BvFileHeader(Header):
     get_default_affine = get_base_affine
 
     get_affine = get_base_affine
+
+    def get_inverse_affine(self, affine):
+        return spl.inv(affine)
 
     def _guess_framing_cube(self):
         """Guess the dimensions of the framing cube.
