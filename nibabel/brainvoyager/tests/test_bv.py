@@ -26,7 +26,7 @@ def test_readCString():
     with InTemporaryDirectory():
         # create a tempfile
         path = 'test.header'
-        fwrite = open(path, 'w')
+        fwrite = open(path, 'wb')
 
         # write the binary block to it
         fwrite.write(binary)
@@ -34,7 +34,7 @@ def test_readCString():
         del fwrite
 
         # open it again
-        fread = open(path, 'r')
+        fread = open(path, 'rb')
 
         # test readout of one string
         assert_equal([s for s in readCString(fread)], ['test.fmr'])
@@ -68,7 +68,8 @@ def test_readCString():
 
 def test_parse_BV_header():
     # open vtc test file
-    fileobj = open(vtc_file, 'r')
+    fileobj = open(vtc_file, 'rb')
+    print(str(fileobj.encoding))
     hdrDict = parse_BV_header(VTC_HDR_DICT_PROTO, fileobj)
     assert_equal(hdrDict['fmr'], 'test.fmr')
     assert_equal(hdrDict['XStart'], 120)
@@ -77,7 +78,7 @@ def test_parse_BV_header():
 
 def test_pack_BV_header():
     # open vtc test file
-    fileobj = open(vtc_file, 'r')
+    fileobj = open(vtc_file, 'rb')
     hdrDict = parse_BV_header(VTC_HDR_DICT_PROTO, fileobj)
     binaryblock = pack_BV_header(VTC_HDR_DICT_PROTO, hdrDict)
     assert_equal(binaryblock, ''.join([
@@ -88,7 +89,7 @@ def test_pack_BV_header():
 
 def test_calc_BV_header_size():
     # open vtc test file
-    fileobj = open(vtc_file, 'r')
+    fileobj = open(vtc_file, 'rb')
     hdrDict = parse_BV_header(VTC_HDR_DICT_PROTO, fileobj)
     hdrSize = calc_BV_header_size(VTC_HDR_DICT_PROTO, hdrDict)
     assert_equal(hdrSize, 48)
