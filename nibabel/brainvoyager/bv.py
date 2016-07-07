@@ -208,6 +208,16 @@ def pack_BV_header(hdr_dict_proto, hdr_dict, parent_hdr_dict=None):
         binary_parts.append(part)
     return b''.join(binary_parts)
 
+def get_inverse_affine(affine):
+     r = np.matrix(affine[0:-1,0:-2])
+     t = np.array(affine[0:-1,-1])
+     r_t = r.transpose()
+     new_r = r_t*t
+     #concatenate the transpose t and the new r with the last row of the affine matrix
+     inverse = np.concatenate((np.concatenate((r_t,new_r), axis = 1),affine[-1, :]))
+     #spl.inv(affine) give a different result
+     return inverse
+
 
 def calc_BV_header_size(hdr_dict_proto, hdr_dict, parent_hdr_dict=None):
     """Calculate the binary size of a hdrDict for a BV file format header.
@@ -540,8 +550,7 @@ class BvFileHeader(Header):
 
     get_affine = get_base_affine
 
-    def get_inverse_affine(self, affine):
-        return spl.inv(affine)
+
 
     def _guess_framing_cube(self):
         """Guess the dimensions of the framing cube.
@@ -755,3 +764,7 @@ class BvFileImage(SpatialImage):
             self._write_data(bvf, data, hdr)
         self._header = hdr
         self.file_map = file_map
+
+
+
+

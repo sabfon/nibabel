@@ -12,7 +12,8 @@ Author: Sabrina Fontanella and Thomas Emmerling
 
 from os.path import join as pjoin
 import numpy as np
-from ..brainvoyager.bv import BvError
+
+from ..brainvoyager.bv import BvError, get_inverse_affine
 from ..brainvoyager.bv_vmr import BvVmrImage, BvVmrHeader
 from ..testing import (assert_equal, data_path)
 from ..externals import OrderedDict
@@ -158,3 +159,7 @@ def test_wrong_input():
     except BvError:
         print ("Wrong number of input parameter for set_zoom")
         pass
+
+def test_getBackToRawImage():
+    affine=np.matrix('-3, 0, 0, -21; 0,  0, -3., -21.; 0, -3, 0, -21; 0,  0,  0, 1.')
+    get_inverse_affine(affine)
