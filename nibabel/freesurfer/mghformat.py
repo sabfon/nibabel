@@ -281,7 +281,7 @@ class MGHHeader(object):
         try:
             code = self._data_type_codes[datatype]
         except KeyError:
-            raise MGHError('datatype dtype "%s" not recognized' % datatype)
+            raise HeaderDataError('datatype dtype "%s" not recognized' % datatype)
         self._header_data['type'] = code
 
     def get_zooms(self):
