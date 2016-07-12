@@ -305,6 +305,36 @@ def supported_np_types(obj):
     return set(supported)
 
 
+def supported_dimensions(obj):
+    """ Data dimensions that instance `obj` supports
+
+    Parameters
+    ----------
+    obj : object
+        Object implementing `get_data_shape` and `set_data_shape`.  The object
+        should raise ``HeaderDataError`` for setting unsupported dimensions.
+        The object will likely be a header or a :class:`SpatialImage`
+
+    Returns
+    -------
+    dimensions : set
+        set of data dimensions that `obj` supports
+    """
+    shape = obj.get_data_shape()
+    dimensions = []
+    for dim in [3, 4]:
+            try:
+                obj.set_data_shape(np.ones(dim))
+            except HeaderDataError:
+                continue
+            # Did set work?
+            if len(obj.get_data_shape()) == dim:
+                dimensions.append(dim)
+    # Reset original header dtype
+    obj.set_data_shape(shape)
+    return set(dimensions)
+
+
 class Header(SpatialHeader):
     '''Alias for SpatialHeader; kept for backwards compatibility.'''
 
