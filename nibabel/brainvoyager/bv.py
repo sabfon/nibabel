@@ -167,6 +167,8 @@ def parse_BV_header(hdr_dict_proto, fileobj, parent_hdr_dict=None):
             if hdr_dict[def_or_name[1]] == def_or_name[2]:
                 bytes = fileobj.read(calcsize(format))
                 value = unpack('<' + format, bytes)[0]
+            else:  # assign the default value
+                value = def_or_name[0]
         else:  # pack string format
             bytes = fileobj.read(calcsize(format))
             value = unpack('<' + format, bytes)[0]
@@ -218,6 +220,8 @@ def pack_BV_header(hdr_dict_proto, hdr_dict, parent_hdr_dict=None):
         elif isinstance(def_or_name, tuple):
             if hdr_dict[def_or_name[1]] == def_or_name[2]:
                 part = pack('<' + format, value)
+            else:
+                continue
         else:
             part = pack('<' + format, value)
         binary_parts.append(part)
@@ -268,6 +272,8 @@ def calc_BV_header_size(hdr_dict_proto, hdr_dict, parent_hdr_dict=None):
         elif isinstance(def_or_name, tuple):
             if hdr_dict[def_or_name[1]] == def_or_name[2]:
                 hdr_size += calcsize(format)
+            else:
+                continue
         else:
             hdr_size += calcsize(format)
     return hdr_size
@@ -326,6 +332,7 @@ class BvFileHeader(Header):
     default_endianness = '<'  # BV files are always little-endian
     allowed_dtypes = [1, 2, 3]
     default_dtype = 2
+    allowed_dimensions = [3]
     data_layout = 'C'
     hdr_dict_proto = BV_HDR_DICT_PROTO
 
@@ -738,7 +745,7 @@ class BvFileImage(SpatialImage):
         hdr_copy = header.copy()
         # use row-major memory presentation!
         data = klass.ImageArrayProxy(bvf, hdr_copy)
-        img = klass(data, affine, header, file_map)
+        img = klass(data, affine, header, file_map=file_map)
         img._load_cache = {'header': hdr_copy,
                            'affine': None,
                            'file_map': copy_file_map(file_map)}

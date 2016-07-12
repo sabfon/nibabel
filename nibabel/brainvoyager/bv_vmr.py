@@ -103,12 +103,13 @@ class BvVmrHeader(BvFileHeader):
 
     def set_data_shape(self, shape=None, zyx=None):
         if (shape is None) and (zyx is None):
-            raise BvError('Shape or zyx needs to be specified!')
+            raise HeaderDataError('Shape or zyx needs to be specified!')
         if shape is not None:
             # Use zyx and t parameters instead of shape.
             # Dimensions will start from standard coordinates.
             if len(shape) != 3:
-                raise BvError('Shape for VMR files must be 3 dimensional!')
+                raise HeaderDataError(
+                    'Shape for VMR files must be 3 dimensional!')
             self._hdrDict['dimX'] = shape[2]
             self._hdrDict['dimY'] = shape[1]
             self._hdrDict['dimZ'] = shape[0]

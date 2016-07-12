@@ -15,6 +15,7 @@ Author: Thomas Emmerling
 """
 
 from .bv import BvError, BvFileHeader, BvFileImage, _proto2default
+from ..spatialimages import HeaderDataError
 
 VMP_HDR_DICT_PROTO = (
     ('MagicNumber', 'I', 2712847316),
@@ -126,19 +127,19 @@ class BvVmpHeader(BvFileHeader):
 
         '''
         if (shape is None) and (zyx is None) and (n is None):
-            raise BvError('Shape, zyx, or n needs to be specified!')
+            raise HeaderDataError('Shape, zyx, or n needs to be specified!')
 
         if ((n is not None) and (n < 1)) or \
            ((shape is not None) and (shape[0] < 1)):
-            raise BvError('NR-VMP files need at least one sub-map!')
+            raise HeaderDataError('NR-VMP files need at least one sub-map!')
 
         nc = self._hdrDict['NrOfSubMaps']
         if shape is not None:
             # Use zyx and t parameters instead of shape.
             # Dimensions will start from default coordinates.
             if len(shape) != 4:
-                raise BvError('Shape for VMP files must be 4 dimensional\
-                              (NZYX)!')
+                raise HeaderDataError(
+                    'Shape for VMP files must be 4 dimensional (NZYX)!')
             self._hdrDict['XEnd'] = self._hdrDict['XStart'] + \
                 (shape[3] * self._hdrDict['Resolution'])
             self._hdrDict['YEnd'] = self._hdrDict['YStart'] + \
