@@ -28,7 +28,8 @@ from .. import (Nifti1Image, Nifti1Header, Nifti1Pair, Nifti2Image, Nifti2Pair,
 from ..tmpdirs import InTemporaryDirectory
 from ..volumeutils import native_code, swapped_code
 from ..optpkg import optional_package
-from ..spatialimages import SpatialImage
+from ..spatialimages import (SpatialImage, supported_np_types,
+                             supported_dimensions)
 
 from numpy.testing import assert_array_equal, assert_array_almost_equal
 from nose.tools import assert_true, assert_equal
@@ -57,10 +58,16 @@ def test_conversion_spatialimages():
         for r_class in klasses:
             if not r_class.makeable:
                 continue
+            if npt not in supported_np_types(r_class.header_class()) or \
+               len(shape) not in supported_dimensions(r_class.header_class()):
+                continue
             img = r_class(data, affine)
             img.set_data_dtype(npt)
             for w_class in klasses:
                 if not w_class.makeable:
+                    continue
+                if npt not in supported_np_types(w_class.header_class()) or \
+                   len(shape) not in supported_dimensions(w_class.header_class()):
                     continue
                 img2 = w_class.from_image(img)
                 assert_array_equal(img2.get_data(), data)

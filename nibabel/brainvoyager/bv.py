@@ -111,10 +111,15 @@ def parse_BV_header(hdr_dict_proto, fileobj, parent_hdr_dict=None):
     fileobj : fileobj
         File object to use. Make sure that the current position is at the
         beginning of the header (e.g. at 0).
-    parent_hdr_dict: tuple
+    parent_hdr_dict: OrderedDict
         When parse_BV_header() is called recursively the already filled
         (parent) hdr_dict is passed to give access to n_fields_name fields
         outside the current scope (see below).
+
+    Returns
+    -------
+    hdr_dict : OrderedDict
+        An OrderedDict containing all header fields parsed from the file.
 
     Notes
     -----
@@ -142,6 +147,10 @@ def parse_BV_header(hdr_dict_proto, fileobj, parent_hdr_dict=None):
         I := unsigned integer (4 bytes)
         f := float (4 bytes)
         z := zero-terminated string (variable bytes)
+
+    The n_fields_name is used to indicate the name of a header field that
+    contains a number for nested header fields loops (e.g. 'NrOfSubMaps' in the
+    VMP file header).
 
     The c_fields_name and c_fields_value parameters are used for header fields
     that are only written depending on the value of another header field (e.g.
@@ -189,7 +198,7 @@ def pack_BV_header(hdr_dict_proto, hdr_dict, parent_hdr_dict=None):
     hdrDict: OrderedDict
        hdrDict that contains the fields and values to for the respective
        BV file format.
-    parent_hdr_dict: tuple
+    parent_hdr_dict: OrderedDict
        When parse_BV_header() is called recursively the already filled
        (parent) hdr_dict is passed to give access to n_fields_name fields
        outside the current scope (see below).
@@ -241,7 +250,7 @@ def calc_BV_header_size(hdr_dict_proto, hdr_dict, parent_hdr_dict=None):
     hdrDict: OrderedDict
        hdrDict that contains the fields and values to for the respective
        BV file format.
-    parent_hdr_dict: tuple
+    parent_hdr_dict: OrderedDict
        When parse_BV_header() is called recursively the already filled
        (parent) hdr_dict is passed to give access to n_fields_name fields
        outside the current scope (see below).
@@ -277,6 +286,67 @@ def calc_BV_header_size(hdr_dict_proto, hdr_dict, parent_hdr_dict=None):
         else:
             hdr_size += calcsize(format)
     return hdr_size
+
+
+def update_BV_header(hdr_dict_proto, hdr_dict_old, hdr_dict_new,
+                     parent_old=None, parent_new=None):
+    """Update a hdrDict after changed nested-loops-number or conditional fields.
+
+    This function can be (and is) called recursively to iterate through nested
+    fields (e.g. the prts field of the VTC header).
+
+    Parameters
+    ----------
+    hdr_dict_proto: tuple
+        tuple of format described in Notes of :func:`parse_BV_header`
+    hdr_dict_old: OrderedDict
+       hdrDict before any changes.
+    hdr_dict_new: OrderedDict
+       hdrDict with changed fields in n_fields_name or c_fields_name fields.
+    parent_old: OrderedDict
+       When update_BV_header() is called recursively the not yet updated
+       (parent) hdr_dict is passed to give access to n_fields_name fields
+       outside the current scope (see below).
+    parent_new: OrderedDict
+       When update_BV_header() is called recursively the not yet updated
+       (parent) hdr_dict is passed to give access to n_fields_name fields
+       outside the current scope (see below).
+
+    Returns
+    -------
+    hdr_dict_new : OrderedDict
+        An updated version hdr_dict correcting effects of changed nested and
+        conditional fields.
+    """
+    for name, format, def_or_name in hdr_dict_proto:
+        # handle nested loop fields
+        if isinstance(format, tuple):
+            # calculate the change of array length and the new array length
+            if def_or_name in hdr_dict_old:
+                delta_values = hdr_dict_new[def_or_name] - \
+                               hdr_dict_old[def_or_name]
+                n_values = hdr_dict_new[def_or_name]
+            else:
+                delta_values = parent_new[def_or_name] - \
+                               parent_old[def_or_name]
+                n_values = parent_new[def_or_name]
+            if delta_values > 0:  # add nested loops
+                hdr_dict_new[name].append(_proto2default(format, hdr_dict_new))
+            elif delta_values < 0:  # remove nested loops
+                hdr_dict_new[name].pop()
+            # loop over nested fields
+            for i in range(n_values):
+                update_BV_header(format, hdr_dict_old[name][i],
+                                 hdr_dict_new[name][i], hdr_dict_old,
+                                 hdr_dict_new)
+        # handle conditional fields
+        elif isinstance(def_or_name, tuple):
+            if hdr_dict_old[def_or_name[1]] != hdr_dict_new[def_or_name[1]]:
+                if hdr_dict_new[def_or_name[1]] == def_or_name[2]:
+                    hdr_dict_new[name] = def_or_name[0]
+                else:
+                    del hdr_dict_new[name]
+    return hdr_dict_new
 
 
 def _proto2default(proto, parent_default_hdr=None):
@@ -663,6 +733,8 @@ class BvFileHeader(Header):
 
     def get_data_offset(self):
         """Return offset into data file to read data."""
+        self.set_data_offset(calc_BV_header_size(
+                             self.hdr_dict_proto, self._hdrDict))
         return self._data_offset
 
     def get_slope_inter(self):
@@ -759,10 +831,6 @@ class BvFileImage(SpatialImage):
         header_file : file-like
            file-like object implementing ``write``, open for writing
         header : header object
-        slope : None or float
-           slope for data scaling
-        inter : None or float
-           intercept for data scaling
         """
         header.write_to(header_file)
 
@@ -771,7 +839,7 @@ class BvFileImage(SpatialImage):
 
         Parameters
         ----------
-        vtcfile : file-like
+        bvfile : file-like
            file-like object implementing ``seek`` or ``tell``, and
            ``write``
         data : array-like
@@ -799,11 +867,7 @@ class BvFileImage(SpatialImage):
         if file_map is None:
             file_map = self.file_map
         data = self.get_data()
-        self.update_header()
-        hdr = self.get_header()
-
         with file_map['image'].get_prepare_fileobj('wb') as bvf:
-            self._write_header(bvf, hdr)
-            self._write_data(bvf, data, hdr)
-        self._header = hdr
+            self._write_header(bvf, self.header)
+            self._write_data(bvf, data, self.header)
         self.file_map = file_map

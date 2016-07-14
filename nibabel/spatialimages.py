@@ -298,7 +298,8 @@ def supported_np_types(obj):
             except HeaderDataError:
                 continue
             # Did set work?
-            if np.dtype(obj.get_data_dtype()) == np.dtype(np_type):
+            if np.dtype(obj.get_data_dtype()) == np.dtype(np_type) or \
+               np.dtype(obj.get_data_dtype()) == np.dtype(np_type).newbyteorder('S'):
                 supported.append(np_type)
     # Reset original header dtype
     obj.set_data_dtype(dt)
@@ -322,7 +323,7 @@ def supported_dimensions(obj):
     """
     shape = obj.get_data_shape()
     dimensions = []
-    for dim in [3, 4]:
+    for dim in [1, 2, 3, 4]:
             try:
                 obj.set_data_shape(np.ones(dim))
             except HeaderDataError:

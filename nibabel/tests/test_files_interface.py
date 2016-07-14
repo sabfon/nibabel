@@ -40,9 +40,12 @@ def test_files_spatialimages():
         aff = np.eye(4)
         # some Image types accept only a few datatypes and shapes
         # so we check and force a type change to a compatible dtype
-        supported_dims = supported_dimensions(klass.header_class())
-        if len(arr.shape) not in supported_dims:
-            arr = np.ones(np.ones(supported_dims.pop())*2)
+        try:
+            supported_dims = supported_dimensions(klass.header_class())
+            if len(arr.shape) not in supported_dims:
+                arr = np.ones(np.ones(supported_dims.pop())*2)
+        except:
+            pass
         supported_dtypes = supported_np_types(klass.header_class())
         if arr.dtype not in supported_dtypes:
             arr = arr.astype(supported_dtypes.pop())
@@ -100,9 +103,12 @@ def test_round_trip_spatialimages():
         aff = np.eye(4)
         # some Image types accept only a few datatypes and shapes
         # so we check and force a type change to a compatible dtype
-        supported_dims = supported_dimensions(klass.header_class())
-        if len(data.shape) not in supported_dims:
-            data = np.ones(np.ones(supported_dims.pop()))
+        try:
+            supported_dims = supported_dimensions(klass.header_class())
+            if len(data.shape) not in supported_dims:
+                data = np.ones(np.ones(supported_dims.pop())*2)
+        except:
+            pass
         supported_dtypes = supported_np_types(klass.header_class())
         if data.dtype not in supported_dtypes:
             data = data.astype(supported_dtypes.pop())
