@@ -24,6 +24,7 @@ from ..volumeutils import make_dt_codes
 from struct import pack, unpack, calcsize
 from ..externals import OrderedDict
 import scipy.linalg as spl
+import math
 
 _dtdefs = (  # code, conversion function, equivalent dtype, aliases
     (1, 'int16', np.uint16),
@@ -208,15 +209,83 @@ def pack_BV_header(hdr_dict_proto, hdr_dict, parent_hdr_dict=None):
         binary_parts.append(part)
     return b''.join(binary_parts)
 
-def get_inverse_affine(affine):
-     r = np.matrix(affine[0:-1,0:-2])
-     t = np.array(affine[0:-1,-1])
-     r_t = r.transpose()
-     new_r = r_t*t
-     #concatenate the transpose t and the new r with the last row of the affine matrix
-     inverse = np.concatenate((np.concatenate((r_t,new_r), axis = 1),affine[-1, :]))
-     #spl.inv(affine) give a different result
-     return inverse
+def get_inverseTransMatrix(matrix):
+    """
+    Get the inverse of a transformation matrix. R is the rotation matrix and
+    t is the translation matrix
+    ----------
+    matrix: matrix of float
+
+    Returns
+    -------
+    inverse: float numpy matrix
+        Inverse transformation matrix of the input given matrix
+    """
+
+    r = np.matrix(matrix[0:-1,0:-2])
+    t = np.matrix(matrix[0:-1,-1])
+    shape = t.shape
+    r_t = r.transpose()
+    if shape[1]!=1: #if t is not a column vector
+        t = t.transpose()
+    new_r = r_t*t
+    lastRow = np.matrix(matrix[-1])
+    #concatenate the transpose t and the new r with the last row of the matrix
+    inverse = np.concatenate((np.concatenate((r_t,new_r), axis = 1), lastRow))
+
+    return inverse
+
+
+def     e(affine):
+    """
+    Get the inverse transformation matrix of the affine matrix.
+    """
+
+    return get_inverseTransMatrix(affine)
+
+def get_inverse_spatialTrans(hdr_dict):
+    """
+    Get the inverse transformation of all the spatial transformation.
+    The function takes all the transformation (starting from the last) and
+     calculate the inverse.
+     toReturn is a variable that stores the final matrix, at the beginning
+     contains the first inverse and as a new inverse is calculate it contains
+     the multiplication of the new inverse and the moltiplication of all the
+     previous inverse.
+
+    Parameters
+    ----------
+    hdr_dict
+
+    Returns
+    -------
+
+    """
+    flag = 0
+    toReturn = np.zeros((4,4)) #all the transformation are always matrix 4*4
+    nrPST = hdr_dict['nrOfPastSpatTrans']
+    for i in range((nrPST-1),-1,-1):
+        nrTransValue = hdr_dict['pastST'][i]['numTransVal']
+        size = int(math.sqrt(nrTransValue))
+
+        matrix = np.zeros((size,size))
+        z = 0
+        for a in range(0,size):
+            for b in range(0,size):
+                matrix[a][b]  =  hdr_dict['pastST'][i]['transfVal'][z]['value']
+                z += 1
+        inverse = get_inverseTransMatrix(matrix)
+        if flag==1:
+            toReturn = toReturn * np.transpose(inverse)
+        else:
+            toReturn = inverse
+            flag = 1
+
+    return toReturn
+
+
+
+
 
 
 def calc_BV_header_size(hdr_dict_proto, hdr_dict, parent_hdr_dict=None):
@@ -296,7 +365,6 @@ class BvError(Exception):
     """Exception for BV format related problems.
     To be raised whenever there is a problem with a BV fileformat.
     """
-
     pass
 
 

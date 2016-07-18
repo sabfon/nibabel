@@ -13,7 +13,7 @@ Author: Sabrina Fontanella and Thomas Emmerling
 from os.path import join as pjoin
 import numpy as np
 
-from ..brainvoyager.bv import BvError, get_inverse_affine
+from ..brainvoyager.bv import BvError, get_inverse_affine, get_inverse_spatialTrans
 from ..brainvoyager.bv_vmr import BvVmrImage, BvVmrHeader
 from ..testing import (assert_equal, data_path)
 from ..externals import OrderedDict
@@ -160,6 +160,12 @@ def test_wrong_input():
         print ("Wrong number of input parameter for set_zoom")
         pass
 
-def test_getBackToRawImage():
+def test_inverseTransfMatrix():
     affine=np.matrix('-3, 0, 0, -21; 0,  0, -3., -21.; 0, -3, 0, -21; 0,  0,  0, 1.')
     get_inverse_affine(affine)
+    vmr = BvVmrImage.from_filename(vmr_file)
+    header = vmr.header._hdrDict
+    get_inverse_spatialTrans(header)
+
+
+
