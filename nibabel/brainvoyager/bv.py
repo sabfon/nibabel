@@ -379,6 +379,62 @@ def _proto2default(proto, parent_default_hdr=None):
     return default_hdr
 
 
+def combineST(STarray, inv=False):
+    """Combine spatial transformation matrices.
+
+    This recursive function returns the dot product of all spatial
+    transformation matrices given in STarray for applying them in one go.
+    The order of multiplication follow the order in the given array.
+
+    Parameters
+    ----------
+    STarray: array
+        array filled with transformation matrices of shape (4, 4)
+
+    inv: boolean
+        Set to true to invert the transformation matrices before
+        multiplication.
+
+    Returns
+    -------
+    combinedST : array of shape (4, 4)
+    """
+    if len(STarray) == 1:
+        if inv:
+            return np.linalg.inv(STarray[0])
+        else:
+            return STarray[0]
+    if inv:
+        return np.dot(np.linalg.inv(STarray[0, :, :]),
+                      combineST(STarray[1:, :, :], inv=inv))
+    else:
+        return np.dot(STarray[0, :, :],
+                      combineST(STarray[1:, :, :], inv=inv))
+
+
+def parseST(STdict):
+    """Parse spatial transformation stored in a BV header OrderedDict.
+
+    This function parses a given OrderedDict from a BV header field and returns
+    a spatial transformation matrix as a numpy array.
+
+    Parameters
+    ----------
+    STdict: OrderedDict
+        OrderedDict filled with transformation matrices of shape (4, 4)
+
+    Returns
+    -------
+    STarray : array of shape (4, 4)
+    """
+    if STdict['numTransVal'] != 16:
+        raise BvError('spatial transformation has to be of shape (4, 4)')
+    STarray = []
+    for v in range(STdict['numTransVal']):
+        STarray.append(STdict['transfVal'][v]['value'])
+    return np.array(STarray).reshape((4, 4))
+
+
 class BvError(Exception):
     """Exception for BV format related problems.
 

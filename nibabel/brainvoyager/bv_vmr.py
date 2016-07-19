@@ -15,9 +15,10 @@ Author: Sabrina Fontanella and Thomas Emmerling
 """
 
 from .bv import (BvError, BvFileHeader, BvFileImage, parse_BV_header,
-                 pack_BV_header, calc_BV_header_size)
+                 pack_BV_header, calc_BV_header_size, combineST, parseST)
 from ..spatialimages import HeaderDataError
 from ..batteryrunners import Report
+import numpy as np
 
 
 VMR_PRHDR_DICT_PROTO = (
@@ -148,6 +149,48 @@ class BvVmrHeader(BvFileHeader):
             return False
         else:
             raise BvError('Left-right convention is unknown!')
+
+    def get_base_affine(self):
+        """Get affine from VMR header fields.
+
+        Internal storage of the image is ZYXT, where (in patient coordiante/
+        real world orientations):
+        Z := axis increasing from right to left (R to L)
+        Y := axis increasing from superior to inferior (S to I)
+        X := axis increasing from anterior to posterior (A to P)
+        T := volumes (if present in file format)
+        """
+        zooms = self.get_zooms()
+        if not self.get_xflip():
+            # make the BV internal Z axis neurological (left-is-left);
+            # not default in BV files!
+            zooms[0] *= -1
+
+        # compute the rotation
+        rot = np.zeros((3, 3))
+        # make the flipped BV Z axis the new R axis
+        rot[:, 0] = [-zooms[0], 0, 0]
+        # make the flipped BV X axis the new A axis
+        rot[:, 1] = [0, 0, -zooms[2]]
+        # make the flipped BV Y axis the new S axis
+        rot[:, 2] = [0, -zooms[1], 0]
+
+        # compute the translation
+        fcc = np.array(self.get_framing_cube())/2  # center of framing cube
+        bbc = np.array(self.get_bbox_center())  # center of bounding box
+        tra = np.dot((bbc-fcc), rot)
+
+        # assemble
+        M = np.eye(4, 4)
+        M[0:3, 0:3] = rot
+        M[0:3, 3] = tra.T
+
+        # look for additional transformations in pastST
+        if self._hdrDict['pastST']:
+            STarray = []
+            for st in range(len(self._hdrDict['pastSt'])):
+                STarray.append(parseST(self._hdrDict['pastST'][st]))
+        return M
 
     @classmethod
     def _get_checks(klass):

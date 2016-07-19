@@ -11,13 +11,16 @@
 import os
 from ...tmpdirs import InTemporaryDirectory
 from ..bv import (readCString, parse_BV_header, pack_BV_header,
-                               calc_BV_header_size)
+                  calc_BV_header_size, parseST, combineST)
 from ..bv_vtc import VTC_HDR_DICT_PROTO
-from ...testing import (assert_equal, data_path)
+from ..bv_vmr import BvVmrImage
+from ...testing import (assert_equal, assert_array_equal, data_path)
+import numpy as np
 
 
 vtc_file = os.path.join(data_path, 'test.vtc')
 vmp_file = os.path.join(data_path, 'test.vmp')
+vmr_file = os.path.join(data_path, 'test.vmr')
 
 
 def test_readCString():
@@ -69,7 +72,6 @@ def test_readCString():
 def test_parse_BV_header():
     # open vtc test file
     fileobj = open(vtc_file, 'rb')
-    print(str(fileobj.encoding))
     hdrDict = parse_BV_header(VTC_HDR_DICT_PROTO, fileobj)
     assert_equal(hdrDict['fmr'], 'test.fmr')
     assert_equal(hdrDict['XStart'], 120)
@@ -93,3 +95,27 @@ def test_calc_BV_header_size():
     hdrDict = parse_BV_header(VTC_HDR_DICT_PROTO, fileobj)
     hdrSize = calc_BV_header_size(VTC_HDR_DICT_PROTO, hdrDict)
     assert_equal(hdrSize, 48)
+
+
+def test_parseST():
+    vmr = BvVmrImage.from_filename(vmr_file)
+    ST = parseST(vmr.header._hdrDict['pastST'][0])
+    correctST = [[1., 0., 0., -1.],
+                 [0., 1., 0., 0.],
+                 [0., 0., 1., -1.],
+                 [0., 0., 0., 1.]]
+    assert_array_equal(ST, correctST)
+
+
+def test_combineST():
+    vmr = BvVmrImage.from_filename(vmr_file)
+    STarray = []
+    for st in range(vmr.header._hdrDict['nrOfPastSpatTrans']):
+        STarray.append(parseST(vmr.header._hdrDict['pastST'][st]))
+    STarray = np.array(STarray)
+    combinedST = combineST(STarray, inv=True)
+    correctCombinedST = [[1., 0., 0., 0.],
+                         [0., 1., 0., -1.],
+                         [0., 0., 1., 1.],
+                         [0., 0., 0., 1.]]
+    assert_array_equal(combinedST, correctCombinedST)
