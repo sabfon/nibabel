@@ -93,6 +93,8 @@ def parse_BV_header(hdr_dict_proto, fileobj, parent_hdr_dict=None):
             value = token[1]
         hdr_dict[name] = value
 
+    return hdr_dict
+
 
 
 class BvFmrHeader(BvFileHeader):
