@@ -6,17 +6,14 @@
 #   copyright and license terms.
 #
 # ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ##
-"""Test BV module for VMR files.
-Author: Sabrina Fontanella and Thomas Emmerling
-"""
+"""Test BV module for VMR files."""
 
 from os.path import join as pjoin
 import numpy as np
-
-from ..brainvoyager.bv import BvError, get_inverse_affine, get_inverse_spatialTrans
-from ..brainvoyager.bv_vmr import BvVmrImage, BvVmrHeader
-from ..testing import (assert_equal, data_path)
-from ..externals import OrderedDict
+from ..bv import BvError
+from ..bv_vmr import BvVmrImage, BvVmrHeader
+from ...testing import (assert_equal, data_path)
+from ...externals import OrderedDict
 
 vmr_file = pjoin(data_path, 'test.vmr')
 
@@ -145,7 +142,6 @@ def test_parse_BVVMR_header():
     compareValues(vmr.header._hdrDict, EXAMPLE_HDR)
 
 
-
 def test_wrong_input():
     vmr = BvVmrHeader()
     try:
@@ -159,13 +155,3 @@ def test_wrong_input():
     except BvError:
         print ("Wrong number of input parameter for set_zoom")
         pass
-
-def test_inverseTransfMatrix():
-    affine=np.matrix('-3, 0, 0, -21; 0,  0, -3., -21.; 0, -3, 0, -21; 0,  0,  0, 1.')
-    get_inverse_affine(affine)
-    vmr = BvVmrImage.from_filename(vmr_file)
-    header = vmr.header._hdrDict
-    get_inverse_spatialTrans(header)
-
-
-

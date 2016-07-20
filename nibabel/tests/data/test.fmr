@@ -1,0 +1,64 @@
+
+FileVersion:                    6
+NrOfVolumes:                    5
+NrOfSlices:                     5
+NrOfSkippedVolumes:             0
+Prefix:                         "test"
+DataStorageFormat:              2
+DataType:                       1
+TR:                             2000
+InterSliceTime:                 6.666667e+01
+TimeResolutionVerified:         0
+TE:                             30
+SliceAcquisitionOrder:          0
+SliceAcquisitionOrderVerified:  0
+ResolutionX:                    10
+ResolutionY:                    10
+LoadAMRFile:                    ""
+ShowAMRFile:                    0
+ImageIndex:                     0
+LayoutNColumns:                 6
+LayoutNRows:                    5
+LayoutZoomLevel:                1
+SegmentSize:                    10
+SegmentOffset:                  0
+NrOfLinkedProtocols:            1
+ProtocolFile:                   "<none>"
+InplaneResolutionX:             3.000000
+InplaneResolutionY:             3.000000
+SliceThickness:                 3.000000
+SliceGap:                       1.000000
+VoxelResolutionVerified:        0
+
+
+PositionInformationFromImageHeaders
+
+PosInfosVerified:               0
+CoordinateSystem:               1
+Slice1CenterX:                   0.00000
+Slice1CenterY:                   0.00000
+Slice1CenterZ:                  -58.00000
+SliceNCenterX:                   0.00000
+SliceNCenterY:                   0.00000
+SliceNCenterZ:                  58.00000
+RowDirX:                        1.000000
+RowDirY:                        0.000000
+RowDirZ:                        0.000000
+ColDirX:                        0.000000
+ColDirY:                        1.000000
+ColDirZ:                        0.000000
+NRows:                          10
+NCols:                          10
+FoVRows:                        192
+FoVCols:                        192
+SliceThickness:                 3.000000
+GapThickness:                   1.000000
+
+
+NrOfPastSpatialTransformations: 0
+
+
+LeftRightConvention:            Radiological
+
+
+FirstDataSourceFile:            "test.stc"

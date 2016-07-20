@@ -9,31 +9,35 @@
 """Test main BV module."""
 
 import os
-import tempfile
-from ..brainvoyager.bv import (readCString, parse_BV_header, pack_BV_header,
-                               calc_BV_header_size)
-from ..brainvoyager.bv_vtc import VTC_HDR_DICT_PROTO
-from ..testing import (assert_equal, data_path)
+from ...tmpdirs import InTemporaryDirectory
+from ..bv import (readCString, parse_BV_header, pack_BV_header,
+                  calc_BV_header_size, parseST, combineST)
+from ..bv_vtc import VTC_HDR_DICT_PROTO
+from ..bv_vmr import BvVmrImage
+from ...testing import (assert_equal, assert_array_equal, data_path)
+import numpy as np
 
 
 vtc_file = os.path.join(data_path, 'test.vtc')
 vmp_file = os.path.join(data_path, 'test.vmp')
+vmr_file = os.path.join(data_path, 'test.vmr')
 
 
 def test_readCString():
     # sample binary block
     binary = 'test.fmr\x00test.prt\x00'
-    try:
+    with InTemporaryDirectory():
         # create a tempfile
-        file, path = tempfile.mkstemp()
-        fwrite = open(path, 'w')
+        path = 'test.header'
+        fwrite = open(path, 'wb')
 
         # write the binary block to it
         fwrite.write(binary)
         fwrite.close()
+        del fwrite
 
         # open it again
-        fread = open(path, 'r')
+        fread = open(path, 'rb')
 
         # test readout of one string
         assert_equal([s for s in readCString(fread)], ['test.fmr'])
@@ -61,16 +65,13 @@ def test_readCString():
         # test readout of one string from given position
         fread.seek(0)
         assert_equal([s for s in readCString(fread, startPos=9)], ['test.prt'])
-    except:
-        os.remove(path)
-        raise
-    finally:
-        os.remove(path)
+
+        del fread
 
 
 def test_parse_BV_header():
     # open vtc test file
-    fileobj = open(vtc_file, 'r')
+    fileobj = open(vtc_file, 'rb')
     hdrDict = parse_BV_header(VTC_HDR_DICT_PROTO, fileobj)
     assert_equal(hdrDict['fmr'], 'test.fmr')
     assert_equal(hdrDict['XStart'], 120)
@@ -79,7 +80,7 @@ def test_parse_BV_header():
 
 def test_pack_BV_header():
     # open vtc test file
-    fileobj = open(vtc_file, 'r')
+    fileobj = open(vtc_file, 'rb')
     hdrDict = parse_BV_header(VTC_HDR_DICT_PROTO, fileobj)
     binaryblock = pack_BV_header(VTC_HDR_DICT_PROTO, hdrDict)
     assert_equal(binaryblock, ''.join([
@@ -90,7 +91,31 @@ def test_pack_BV_header():
 
 def test_calc_BV_header_size():
     # open vtc test file
-    fileobj = open(vtc_file, 'r')
+    fileobj = open(vtc_file, 'rb')
     hdrDict = parse_BV_header(VTC_HDR_DICT_PROTO, fileobj)
     hdrSize = calc_BV_header_size(VTC_HDR_DICT_PROTO, hdrDict)
     assert_equal(hdrSize, 48)
+
+
+def test_parseST():
+    vmr = BvVmrImage.from_filename(vmr_file)
+    ST = parseST(vmr.header._hdrDict['pastST'][0])
+    correctST = [[1., 0., 0., -1.],
+                 [0., 1., 0., 0.],
+                 [0., 0., 1., -1.],
+                 [0., 0., 0., 1.]]
+    assert_array_equal(ST, correctST)
+
+
+def test_combineST():
+    vmr = BvVmrImage.from_filename(vmr_file)
+    STarray = []
+    for st in range(vmr.header._hdrDict['nrOfPastSpatTrans']):
+        STarray.append(parseST(vmr.header._hdrDict['pastST'][st]))
+    STarray = np.array(STarray)
+    combinedST = combineST(STarray, inv=True)
+    correctCombinedST = [[1., 0., 0., 0.],
+                         [0., 1., 0., -1.],
+                         [0., 0., 1., 1.],
+                         [0., 0., 0., 1.]]
+    assert_array_equal(combinedST, correctCombinedST)

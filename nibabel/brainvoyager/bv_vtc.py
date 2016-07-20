@@ -50,7 +50,7 @@ class BvVtcHeader(BvFileHeader):
     """
 
     # format defaults
-    allowed_dtypes = [2]
+    allowed_dtypes = [1,2]
     default_dtype = 2
     hdr_dict_proto = VTC_HDR_DICT_PROTO
 
@@ -82,12 +82,13 @@ class BvVtcHeader(BvFileHeader):
            number of volumes
         """
         if (shape is None) and (zyx is None) and (t is None):
-            raise BvError('Shape, zyx, or t needs to be specified!')
+            raise HeaderDataError('Shape, zyx, or t needs to be specified!')
         if shape is not None:
             # Use zyx and t parameters instead of shape.
             # Dimensions will start from standard coordinates.
             if len(shape) != 4:
-                raise BvError('Shape for VTC files must be 4 dimensional!')
+                raise HeaderDataError(
+                    'Shape for VTC files must be 4 dimensional!')
             self._hdrDict['XEnd'] = \
                 self._hdrDict['XStart'] + \
                 (shape[2] * self._hdrDict['Resolution'])

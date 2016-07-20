@@ -12,7 +12,9 @@ http://support.brainvoyager.com/installation-introduction/23-file-formats/377-us
 Author: Thomas Emmerling
 """
 
-from .bv import BvError, BvFileHeader, BvFileImage, _proto2default
+from .bv import (BvError, BvFileHeader, BvFileImage, _proto2default,
+                 update_BV_header)
+from ..spatialimages import HeaderDataError
 
 VMP_HDR_DICT_PROTO = (
     ('MagicNumber', 'I', 2712847316),
@@ -35,7 +37,7 @@ VMP_HDR_DICT_PROTO = (
     ('DimX', 'i', 256),
     ('DimY', 'i', 256),
     ('DimZ', 'i', 256),
-    ('NameOfVTCFile', 'z', b''),
+    ('NameOfVTCFile', 'z', b'<none>'),
     ('NameOfProtocolFile', 'z', b''),
     ('NameOfVOIFile', 'z', b''),
     ('Maps', (
@@ -121,34 +123,37 @@ class BvVmpHeader(BvFileHeader):
         n: int
            number of submaps
         '''
+        hdrDict_old = self._hdrDict.copy()
         if (shape is None) and (zyx is None) and (n is None):
-            raise BvError('Shape, zyx, or n needs to be specified!')
+            raise HeaderDataError('Shape, zyx, or n needs to be specified!')
 
         if ((n is not None) and (n < 1)) or \
            ((shape is not None) and (shape[0] < 1)):
-            raise BvError('NR-VMP files need at least one sub-map!')
+            raise HeaderDataError('NR-VMP files need at least one sub-map!')
 
         nc = self._hdrDict['NrOfSubMaps']
         if shape is not None:
             # Use zyx and t parameters instead of shape.
             # Dimensions will start from default coordinates.
             if len(shape) != 4:
-                raise BvError('Shape for VMP files must be 4 dimensional\
-                              (NZYX)!')
+                raise HeaderDataError(
+                    'Shape for VMP files must be 4 dimensional (NZYX)!')
             self._hdrDict['XEnd'] = self._hdrDict['XStart'] + \
                 (shape[3] * self._hdrDict['Resolution'])
             self._hdrDict['YEnd'] = self._hdrDict['YStart'] + \
                 (shape[2] * self._hdrDict['Resolution'])
             self._hdrDict['ZEnd'] = self._hdrDict['ZStart'] + \
                 (shape[1] * self._hdrDict['Resolution'])
-            if shape[0] > nc:
-                for m in range(shape[0] - nc):
-                    self._hdrDict['Maps']\
-                        .append(_proto2default(self.hdr_dict_proto[23][1]))
-            elif shape[0] < nc:
-                for m in range(nc - shape[0]):
-                    self._hdrDict['Maps'].pop()
-            self._hdrDict['NrOfSubMaps'] = shape[0]
+            # if shape[0] > nc:
+            #     for m in range(shape[0] - nc):
+            #         self._hdrDict['Maps']\
+            #             .append(_proto2default(self.hdr_dict_proto[23][1]))
+            # elif shape[0] < nc:
+            #     for m in range(nc - shape[0]):
+            #         self._hdrDict['Maps'].pop()
+            self._hdrDict['NrOfSubMaps'] = int(shape[0])
+            self._hdrDict = update_BV_header(self.hdr_dict_proto,
+                                             hdrDict_old, self._hdrDict)
             return
         if zyx is not None:
             self._hdrDict['XStart'] = zyx[2][0]
@@ -158,14 +163,16 @@ class BvVmpHeader(BvFileHeader):
             self._hdrDict['ZStart'] = zyx[0][0]
             self._hdrDict['ZEnd'] = zyx[0][1]
         if n is not None:
-            if n > nc:
-                for m in range(n - nc):
-                    self._hdrDict['Maps']\
-                        .append(_proto2default(self.hdr_dict_proto[23][1]))
-            elif n < nc:
-                for m in range(nc - n):
-                    self._hdrDict['Maps'].pop()
-            self._hdrDict['NrOfSubMaps'] = n
+            # if n > nc:
+            #     for m in range(n - nc):
+            #         self._hdrDict['Maps']\
+            #             .append(_proto2default(self.hdr_dict_proto[23][1]))
+            # elif n < nc:
+            #     for m in range(nc - n):
+            #         self._hdrDict['Maps'].pop()
+            self._hdrDict['NrOfSubMaps'] = int(n)
+            self._hdrDict = update_BV_header(self.hdr_dict_proto,
+                                             hdrDict_old, self._hdrDict)
 
     def get_framing_cube(self):
         ''' Get the dimensions of the framing cube that constitutes
