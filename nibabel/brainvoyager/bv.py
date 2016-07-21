@@ -98,6 +98,31 @@ def readCString(f, nStrings=1, bufsize=1000, startPos=None, strip=True,
     return str_list
 
 
+def parse_notBin_BV_header(hdr_dict_proto, fileobj, parent_hdr_dict=None):
+    """Parse the header of a text file BV file format."""
+    hdr_dict = OrderedDict()
+    for name, format, def_or_name in hdr_dict_proto:
+        line = fileobj.readline()
+        while (line=='\r\n' or line.find(':')==-1): #skip all the blank and section title lines
+           line = fileobj.readline()
+        if isinstance(format, tuple):
+            raise "Non implemented yet!"
+        else:
+            line =  (line.rstrip('\n')).rstrip('\r') #delete \n and \r from line
+            token = line.split(":")
+            token[1] = token[1].replace(' ', '') #delete all the spaces
+            if '"' in token[1]: #delete all the " from the string
+                token[1] = token[1].replace('"', '')
+            if format == 'h':
+                value = int(token[1])
+            else:
+                value = token[1]
+        hdr_dict[name] = value
+
+    return hdr_dict
+
+
+
 def parse_BV_header(hdr_dict_proto, fileobj, parent_hdr_dict=None):
     """Parse the header of a BV file format.
 

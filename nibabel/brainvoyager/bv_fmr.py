@@ -11,18 +11,18 @@ for documentation on the file format see:
 http://support.brainvoyager.com/automation-aamp-development/23-file-formats/383-developer-guide-26-the-format-of-fmr-files.html
 """
 
-from .bv import (BvError, BvFileHeader, BvFileImage, parse_BV_header,
+from .bv import (BvError, BvFileHeader, BvFileImage, parse_notBin_BV_header,
                  pack_BV_header, calc_BV_header_size)
 from ..spatialimages import HeaderDataError
 from ..batteryrunners import Report
 from ..externals import OrderedDict
 
 FMR_HDR_DICT_PROTO = (
-    ('FileVersion','h',6),
+    ('FileVersion','h',7),
     ('NrOfVolumes','h',5),
     ('NrOfSlices','h',5),
     ('NrOfSkippedVolumes','h',0),
-    ('Prefix','h',b''),
+    ('Prefix','z',b''),
     ('DataStorageFormat','h',2),
     ('DataType','h',1),
     ('TR','h',2000),
@@ -33,7 +33,7 @@ FMR_HDR_DICT_PROTO = (
     ('SliceAcquisitionOrderVerified','h',0),
     ('ResolutionX','h',10),
     ('ResolutionY','h',10),
-    ('LoadAMRFile','h',""),
+    ('LoadAMRFile','z',""),
     ('ShowAMRFile','h',0),
     ('ImageIndex','h',0),
     ('LayoutNColumns','h',6),
@@ -66,41 +66,43 @@ FMR_HDR_DICT_PROTO = (
     ('NCols','h',10),
     ('FoVRows','h',192),
     ('FoVCols','h',192),
-    ('SliceThickness','h',3.000000),
+    ('SliceThicknessFromImgHead','h',3.000000),
     ('GapThickness','h',1.000000),
     ('NrOfPastSpatialTransformations','h',0),
     ('LeftRightConvention','z',b''),
-    ('FirstDataSourceFile','z',b'')
-
-
-
-
-
+    ('FirstDataSourceFile','z',b''),
+    ('MultibandSequence','h',0),
+    ('SliceTimingTableSize','h',0),
+    ('AcqusitionTime','z', b'')
 )
-
-def parse_BV_header(hdr_dict_proto, fileobj, parent_hdr_dict=None):
-    hdr_dict = OrderedDict()
-    for name, format, def_or_name in hdr_dict_proto:
-        line = fileobj.readline()
-        while (line=='\r\n' or line.find(':')==-1): #skip all the blank and section title lines
-           line = fileobj.readline()
-        if isinstance(format, tuple):
-            raise "Non implemented yet!"
-        else:
-            line =  (line.rstrip('\n')).rstrip('\r') #delete \n and \r from line
-            token = line.split(":")
-            token[1] = token[1].replace(' ', '') #delete all the spaces
-            value = token[1]
-        hdr_dict[name] = value
-
-    return hdr_dict
 
 
 
 class BvFmrHeader(BvFileHeader):
     """Class for BrainVoyager FMR header."""
     default_endianness = '<'
+    hdr_dict_proto = FMR_HDR_DICT_PROTO
 
+
+    def from_fileobj(self, fileobj, endianness=default_endianness,
+                     check=True):
+        """Return read structure with given or guessed endiancode.
+
+        Parameters
+        ----------
+        fileobj : file-like object
+           Needs to implement ``read`` method
+        endianness : None or endian code, optional
+           Code specifying endianness of read data
+
+        Returns
+        -------
+        header : BvFileHeader object
+           BvFileHeader object initialized from data in fileobj
+        """
+        hdrDict = parse_notBin_BV_header(self.hdr_dict_proto, fileobj)
+        offset = fileobj.tell()
+        return self(hdrDict, endianness, check, offset)
 
 
 class BvFmrImage(BvFileImage):
