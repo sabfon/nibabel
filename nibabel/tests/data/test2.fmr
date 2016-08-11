@@ -1,0 +1,151 @@
+
+FileVersion:                   7
+NrOfVolumes:                   207
+NrOfSlices:                    82
+NrOfSkippedVolumes:            1
+Prefix:                        "02_ExpRun1"
+DataStorageFormat:             2
+DataType:                      2
+TR:                            3000
+InterSliceTime:                36
+TimeResolutionVerified:        1
+TE:                            26
+SliceAcquisitionOrder:         5
+SliceAcquisitionOrderVerified: 1
+ResolutionX:                   186
+ResolutionY:                   186
+LoadAMRFile:                   "<none>"
+ShowAMRFile:                   1
+ImageIndex:                    0
+LayoutNColumns:                10
+LayoutNRows:                   9
+LayoutZoomLevel:               1
+SegmentSize:                   10
+SegmentOffset:                 0
+NrOfLinkedProtocols:           1
+ProtocolFile:                  "02_ExpRun1.prt"
+InplaneResolutionX:            0.795699
+InplaneResolutionY:            0.795699
+SliceThickness:                0.8
+SliceGap:                      0
+VoxelResolutionVerified:       1
+
+
+PositionInformationFromImageHeaders
+
+PosInfosVerified: 1
+CoordinateSystem: 1
+Slice1CenterX:    -0.778194
+Slice1CenterY:    -4.98945
+Slice1CenterZ:    -17.9358
+SliceNCenterX:    -0.778194
+SliceNCenterY:    53.1029
+SliceNCenterZ:    10.7752
+RowDirX:          1
+RowDirY:          0
+RowDirZ:          0
+ColDirX:          0
+ColDirY:          0.443071
+ColDirZ:          -0.896486
+NRows:            186
+NCols:            186
+FoVRows:          148
+FoVCols:          148
+SliceThickness:   0.8
+GapThickness:     0
+
+
+NrOfPastSpatialTransformations: 0
+
+
+LeftRightConvention: Radiological
+
+
+FirstDataSourceFile: "ThoEmm_2015-08-26_LETIMA_S01-0016-0001-00001.dcm"
+
+MultibandSequence: 0
+
+SliceTimingTableSize: 82
+0
+1542.5
+75
+1617.5
+147.5
+1690
+222.5
+1765
+295
+1837.5
+367.5
+1910
+442.5
+1985
+515
+2057.5
+587.5
+2130
+662.5
+2205
+735
+2277.5
+810
+2352.5
+882.5
+2425
+955
+2497.5
+1030
+2572.5
+1102.5
+2645
+1175
+2720
+1250
+2792.5
+1322.5
+2865
+1397.5
+2940
+1470
+0
+1542.5
+75
+1617.5
+147.5
+1690
+222.5
+1765
+295
+1837.5
+367.5
+1910
+442.5
+1985
+515
+2057.5
+587.5
+2130
+662.5
+2205
+735
+2277.5
+810
+2352.5
+882.5
+2425
+955
+2497.5
+1030
+2572.5
+1102.5
+2645
+1175
+2720
+1250
+2792.5
+1322.5
+2865
+1397.5
+2940
+1470
+
